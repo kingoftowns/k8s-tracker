@@ -2,7 +2,6 @@ variable "app_name" {
   description = "The name of the application"
   type        = string
   default     = "k8s-tracker"
-
 }
 
 variable "db_username" {

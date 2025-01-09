@@ -6,11 +6,11 @@ namespace KubernetesTracker.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class IngressController : ControllerBase
+public class ingressController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
 
-    public IngressController(ApplicationDbContext context)
+    public ingressController(ApplicationDbContext context)
     {
         _context = context;
     }

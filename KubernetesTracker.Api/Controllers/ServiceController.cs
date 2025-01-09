@@ -6,11 +6,11 @@ namespace KubernetesTracker.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class ServiceController : ControllerBase
+public class serviceController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
 
-    public ServiceController(ApplicationDbContext context)
+    public serviceController(ApplicationDbContext context)
     {
         _context = context;
     }

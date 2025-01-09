@@ -13,10 +13,12 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
         o => o.EnableRetryOnFailure())
     .EnableDetailedErrors());
 
-builder.WebHost.ConfigureKestrel(serverOptions =>
-{
-    serverOptions.ListenAnyIP(80);
-});
+#if !DEBUG
+    builder.WebHost.ConfigureKestrel(serverOptions =>
+    {
+        serverOptions.ListenAnyIP(80);
+    });
+#endif
 
 var app = builder.Build();
 

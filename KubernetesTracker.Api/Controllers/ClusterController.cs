@@ -6,11 +6,11 @@ namespace KubernetesTracker.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class ClustersController : ControllerBase
+public class clustersController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
 
-    public ClustersController(ApplicationDbContext context)
+    public clustersController(ApplicationDbContext context)
     {
         _context = context;
     }
@@ -40,7 +40,6 @@ public class ClustersController : ControllerBase
         return cluster;
     }
 
-    // New method - Get by name
     [HttpGet("name/{name}")]
     public async Task<ActionResult<Cluster>> GetClusterByName(string name)
     {
