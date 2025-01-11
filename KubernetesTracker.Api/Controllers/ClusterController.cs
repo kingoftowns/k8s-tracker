@@ -63,8 +63,8 @@ public class clustersController : ControllerBase
         {
             ClusterName = clusterDto.ClusterName,
             ApiserverVersion = clusterDto.ApiserverVersion,
-            KubeletVersion = clusterDto.KubeletVersion,
-            KernelVersion = clusterDto.KernelVersion,
+            KubeletVersions = clusterDto.KubeletVersions,
+            KernelVersions = clusterDto.KernelVersions,
             Ingresses = new List<Ingress>(),
             Services = new List<Service>()
         };

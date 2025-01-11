@@ -18,10 +18,18 @@ namespace KubernetesTracker.Api.Data
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<Cluster>()
-                .HasIndex(c => c.ClusterName)
-                .IsUnique();
+            modelBuilder.Entity<Cluster>(entity =>
+            {
+                entity.HasIndex(c => c.ClusterName)
+                    .IsUnique();
 
+                entity.Property(c => c.KubeletVersions)
+                    .HasColumnType("text[]");
+
+                entity.Property(c => c.KernelVersions)
+                    .HasColumnType("text[]");
+            });
+            
             modelBuilder.Entity<Ingress>()
                 .HasIndex(i => new { i.ClusterId, i.Namespace, i.IngressName })
                 .IsUnique();
