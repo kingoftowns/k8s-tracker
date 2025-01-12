@@ -3,6 +3,8 @@
 
 # Mac
 *.DS_Store
+.venv/
+*.crt
 
 ###################
 # compiled source #
