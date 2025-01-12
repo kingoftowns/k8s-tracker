@@ -51,16 +51,18 @@ namespace KubernetesTracker.Api.Data
         {
             var entries = ChangeTracker
                 .Entries()
-                .Where(e => e.Entity is BaseEntity && e.State is EntityState.Added or EntityState.Modified);
+                .Where(e => e.Entity is BaseEntity && (e.State == EntityState.Added || e.State == EntityState.Modified));
 
             foreach (var entityEntry in entries)
             {
+                var entity = (BaseEntity)entityEntry.Entity;
+
                 if (entityEntry.State == EntityState.Added)
                 {
-                    ((BaseEntity)entityEntry.Entity).CreatedAt = DateTime.UtcNow;
+                    entity.CreatedAt = DateTime.UtcNow;
                 }
 
-                ((BaseEntity)entityEntry.Entity).UpdatedAt = DateTime.UtcNow;
+                entity.UpdatedAt = DateTime.UtcNow;
             }
 
             return base.SaveChangesAsync(cancellationToken);

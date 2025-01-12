@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using KubernetesTracker.Api.Data;
 
 namespace KubernetesTracker.Api.Controllers;
 
@@ -16,33 +15,33 @@ public class ingressController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Ingress>>> GetIngresses()
+    public async Task<ActionResult<IEnumerable<IngressResponseDto>>> GetIngresses()
     {
         var ingresses = await _ingressService.GetAllIngressesAsync();
         return Ok(ingresses);
     }
 
     [HttpGet("cluster/{clusterName}")]
-    public async Task<ActionResult<IEnumerable<Ingress>>> GetIngressesByCluster(string clusterName)
+    public async Task<ActionResult<IEnumerable<IngressResponseDto>>> GetIngressesByCluster(string clusterName)
     {
         var ingresses = await _ingressService.GetIngressesByClusterAsync(clusterName);
         return Ok(ingresses);
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<Ingress>> GetIngress(int id)
+    public async Task<ActionResult<IngressResponseDto>> GetIngress(int id)
     {
         var ingress = await _ingressService.GetIngressAsync(id);
         if (ingress == null)
         {
-            return NotFound();
+            return NotFound($"Ingress with ID {id} not found");
         }
 
         return ingress;
     }
 
     [HttpPost]
-    public async Task<ActionResult<Ingress>> CreateIngress(IngressCreateDto ingressDto)
+    public async Task<ActionResult<IngressResponseDto>> CreateIngress(IngressCreateDto ingressDto)
     {
         try
         {
@@ -64,7 +63,7 @@ public class ingressController : ControllerBase
     {
         try
         {
-            await _ingressService.UpdateIngressAsync(id, ingressDto);
+            var ingress = await _ingressService.UpdateIngressAsync(id, ingressDto);
             return NoContent();
         }
         catch (NotFoundException ex)

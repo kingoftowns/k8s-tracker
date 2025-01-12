@@ -1,9 +1,9 @@
 public interface IClusterService
 {
-    Task<IEnumerable<Cluster>> GetAllClustersAsync();
-    Task<Cluster?> GetClusterByIdAsync(int id);
-    Task<Cluster?> GetClusterByNameAsync(string name);
-    Task<Cluster> CreateClusterAsync(ClusterCreateDto clusterDto);
-    Task<Cluster> UpdateClusterAsync(int id, ClusterCreateDto clusterDto);
+    Task<IEnumerable<ClusterResponseDto>> GetAllClustersAsync();
+    Task<ClusterResponseDto?> GetClusterByIdAsync(int id);
+    Task<ClusterResponseDto?> GetClusterByNameAsync(string name);
+    Task<ClusterResponseDto> CreateClusterAsync(ClusterCreateDto clusterDto);
+    Task<ClusterResponseDto> UpdateClusterAsync(int id, ClusterCreateDto clusterDto);
     Task DeleteClusterAsync(int id);
 }

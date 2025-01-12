@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using KubernetesTracker.Api.Data;
 
 namespace KubernetesTracker.Api.Controllers;
 
@@ -16,14 +15,14 @@ public class clustersController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Cluster>>> GetClusters()
+    public async Task<ActionResult<IEnumerable<ClusterResponseDto>>> GetClusters()
     {
         var clusters = await _clusterService.GetAllClustersAsync();
         return Ok(clusters);
     }
 
     [HttpGet("{id:int}")]
-    public async Task<ActionResult<Cluster>> GetCluster(int id)
+    public async Task<ActionResult<ClusterResponseDto>> GetCluster(int id)
     {
         var cluster = await _clusterService.GetClusterByIdAsync(id);
         if (cluster == null)
@@ -35,7 +34,7 @@ public class clustersController : ControllerBase
     }
 
     [HttpGet("name/{name}")]
-    public async Task<ActionResult<Cluster>> GetClusterByName(string name)
+    public async Task<ActionResult<ClusterResponseDto>> GetClusterByName(string name)
     {
         var cluster = await _clusterService.GetClusterByNameAsync(name);
         if (cluster == null)
@@ -47,7 +46,7 @@ public class clustersController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<Cluster>> CreateCluster(ClusterCreateDto clusterDto)
+    public async Task<ActionResult<ClusterResponseDto>> CreateCluster(ClusterCreateDto clusterDto)
     {
         try
         {
@@ -57,9 +56,9 @@ public class clustersController : ControllerBase
                 new { id = cluster.Id },
                 cluster);
         }
-        catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("unique constraint") == true)
+        catch (DbUpdateException ex)
         {
-            return Conflict($"A cluster with name '{clusterDto.ClusterName}' already exists");
+            return Conflict(ex.Message);
         }
     }
 
@@ -68,16 +67,16 @@ public class clustersController : ControllerBase
     {
         try
         {
-            var cluster = await _clusterService.UpdateClusterAsync(id, clusterDto);
+            await _clusterService.UpdateClusterAsync(id, clusterDto);
             return NoContent();
         }
-        catch (NotFoundException)
+        catch (NotFoundException ex)
         {
-            return NotFound();
+            return NotFound(ex.Message);
         }
-        catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("unique constraint") == true)
+        catch (DbUpdateException ex)
         {
-            return Conflict($"A cluster with name '{clusterDto.ClusterName}' already exists");
+            return Conflict(ex.Message);
         }
     }
 
@@ -89,9 +88,9 @@ public class clustersController : ControllerBase
             await _clusterService.DeleteClusterAsync(id);
             return NoContent();
         }
-        catch (NotFoundException)
+        catch (NotFoundException ex)
         {
-            return NotFound();
+            return NotFound(ex.Message);
         }
     }
 }

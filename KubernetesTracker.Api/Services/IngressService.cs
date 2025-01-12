@@ -10,29 +10,38 @@ public class IngressService : IIngressService
         _context = context;
     }
 
-    public async Task<IEnumerable<Ingress>> GetAllIngressesAsync()
+    public async Task<IEnumerable<IngressResponseDto>> GetAllIngressesAsync()
     {
-        return await _context.Ingresses
+        var ingresses = await _context.Ingresses
             .Include(i => i.Cluster)
+            .AsSplitQuery()
             .ToListAsync();
+
+        return ingresses.Select(ToResponseDto);
     }
 
-    public async Task<IEnumerable<Ingress>> GetIngressesByClusterAsync(string clusterName)
+    public async Task<IEnumerable<IngressResponseDto>> GetIngressesByClusterAsync(string clusterName)
     {
-        return await _context.Ingresses
+        var ingresses = await _context.Ingresses
             .Include(i => i.Cluster)
+            .AsSplitQuery()
             .Where(i => i.Cluster.ClusterName == clusterName)
             .ToListAsync();
+
+        return ingresses.Select(ToResponseDto);
     }
 
-    public async Task<Ingress?> GetIngressAsync(int id)
+    public async Task<IngressResponseDto?> GetIngressAsync(int id)
     {
-        return await _context.Ingresses
+        var ingress = await _context.Ingresses
             .Include(i => i.Cluster)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(i => i.Id == id);
+
+        return ingress == null ? null : ToResponseDto(ingress);
     }
 
-    public async Task<Ingress> CreateIngressAsync(IngressCreateDto ingressDto)
+    public async Task<IngressResponseDto> CreateIngressAsync(IngressCreateDto ingressDto)
     {
         var cluster = await _context.Clusters
             .FirstOrDefaultAsync(c => c.ClusterName == ingressDto.ClusterName);
@@ -42,7 +51,6 @@ public class IngressService : IIngressService
             throw new NotFoundException($"Cluster '{ingressDto.ClusterName}' not found");
         }
 
-        // Check for duplicate ingress in the same namespace
         var existingIngress = await _context.Ingresses
             .AnyAsync(i => i.Cluster.Id == cluster.Id && 
                           i.Namespace == ingressDto.Namespace && 
@@ -60,18 +68,22 @@ public class IngressService : IIngressService
             ClusterId = cluster.Id,
             Namespace = ingressDto.Namespace,
             IngressName = ingressDto.IngressName,
-            Hosts = ingressDto.Hosts
+            Hosts = ingressDto.Hosts,
+            Cluster = cluster
         };
 
         _context.Ingresses.Add(ingress);
         await _context.SaveChangesAsync();
 
-        return ingress;
+        return ToResponseDto(ingress);
     }
 
-    public async Task<Ingress> UpdateIngressAsync(int id, IngressCreateDto ingressDto)
+    public async Task<IngressResponseDto> UpdateIngressAsync(int id, IngressCreateDto ingressDto)
     {
-        var ingress = await _context.Ingresses.FindAsync(id);
+        var ingress = await _context.Ingresses
+            .Include(i => i.Cluster)
+            .FirstOrDefaultAsync(i => i.Id == id);
+
         if (ingress == null)
         {
             throw new NotFoundException($"Ingress with ID {id} not found");
@@ -85,14 +97,29 @@ public class IngressService : IIngressService
             throw new NotFoundException($"Cluster '{ingressDto.ClusterName}' not found");
         }
 
+        // Check if update would create a duplicate
+        var existingIngress = await _context.Ingresses
+            .AnyAsync(i => i.Id != id &&
+                          i.Cluster.Id == cluster.Id && 
+                          i.Namespace == ingressDto.Namespace && 
+                          i.IngressName == ingressDto.IngressName);
+
+        if (existingIngress)
+        {
+            throw new DbUpdateException(
+                $"Ingress '{ingressDto.IngressName}' already exists in namespace '{ingressDto.Namespace}'",
+                new Exception("Unique constraint violation"));
+        }
+
         ingress.ClusterId = cluster.Id;
+        ingress.Cluster = cluster;
         ingress.Namespace = ingressDto.Namespace;
         ingress.IngressName = ingressDto.IngressName;
         ingress.Hosts = ingressDto.Hosts;
 
         await _context.SaveChangesAsync();
 
-        return ingress;
+        return ToResponseDto(ingress);
     }
 
     public async Task DeleteIngressAsync(int id)
@@ -106,4 +133,15 @@ public class IngressService : IIngressService
         _context.Ingresses.Remove(ingress);
         await _context.SaveChangesAsync();
     }
+
+    private static IngressResponseDto ToResponseDto(Ingress ingress) => new()
+    {
+        Id = ingress.Id,
+        Namespace = ingress.Namespace,
+        IngressName = ingress.IngressName,
+        Hosts = ingress.Hosts,
+        ClusterName = ingress.Cluster.ClusterName,
+        CreatedAt = ingress.CreatedAt,
+        UpdatedAt = ingress.UpdatedAt
+    };
 }

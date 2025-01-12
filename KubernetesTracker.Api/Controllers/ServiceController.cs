@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using KubernetesTracker.Api.Data;
 
 namespace KubernetesTracker.Api.Controllers;
 
@@ -16,33 +15,33 @@ public class serviceController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Service>>> GetServices()
+    public async Task<ActionResult<IEnumerable<ServiceResponseDto>>> GetServices()
     {
         var services = await _kubernetesService.GetAllServicesAsync();
         return Ok(services);
     }
 
     [HttpGet("cluster/{clusterName}")]
-    public async Task<ActionResult<IEnumerable<Service>>> GetServicesByCluster(string clusterName)
+    public async Task<ActionResult<IEnumerable<ServiceResponseDto>>> GetServicesByCluster(string clusterName)
     {
         var services = await _kubernetesService.GetServicesByClusterAsync(clusterName);
         return Ok(services);
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<Service>> GetService(int id)
+    public async Task<ActionResult<ServiceResponseDto>> GetService(int id)
     {
         var service = await _kubernetesService.GetServiceAsync(id);
         if (service == null)
         {
-            return NotFound();
+            return NotFound($"Service with ID {id} not found");
         }
 
         return service;
     }
 
     [HttpPost]
-    public async Task<ActionResult<Service>> CreateService(ServiceCreateDto serviceDto)
+    public async Task<ActionResult<ServiceResponseDto>> CreateService(ServiceCreateDto serviceDto)
     {
         try
         {
@@ -64,7 +63,7 @@ public class serviceController : ControllerBase
     {
         try
         {
-            await _kubernetesService.UpdateServiceAsync(id, serviceDto);
+            var service = await _kubernetesService.UpdateServiceAsync(id, serviceDto);
             return NoContent();
         }
         catch (NotFoundException ex)
