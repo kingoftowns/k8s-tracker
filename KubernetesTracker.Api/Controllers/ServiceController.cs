@@ -8,107 +8,86 @@ namespace KubernetesTracker.Api.Controllers;
 [Route("api/[controller]")]
 public class serviceController : ControllerBase
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IKubernetesService _kubernetesService;
 
-    public serviceController(ApplicationDbContext context)
+    public serviceController(IKubernetesService kubernetesService)
     {
-        _context = context;
+        _kubernetesService = kubernetesService;
     }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Service>>> GetServices()
     {
-        return await _context.Services
-            .Include(s => s.Cluster)
-            .ToListAsync();
+        var services = await _kubernetesService.GetAllServicesAsync();
+        return Ok(services);
     }
 
     [HttpGet("cluster/{clusterName}")]
     public async Task<ActionResult<IEnumerable<Service>>> GetServicesByCluster(string clusterName)
     {
-        return await _context.Services
-            .Include(s => s.Cluster)
-            .Where(s => s.Cluster.ClusterName == clusterName)
-            .ToListAsync();
+        var services = await _kubernetesService.GetServicesByClusterAsync(clusterName);
+        return Ok(services);
     }
 
-    [HttpPost]
-    public async Task<ActionResult<Service>> CreateService(ServiceCreateDto serviceDto)
+    [HttpGet("{id}")]
+    public async Task<ActionResult<Service>> GetService(int id)
     {
-        var cluster = await _context.Clusters
-            .FirstOrDefaultAsync(c => c.ClusterName == serviceDto.ClusterName);
-
-        if (cluster == null)
-        {
-            return NotFound($"Cluster '{serviceDto.ClusterName}' not found");
-        }
-
-        var service = new Service
-        {
-            ClusterId = cluster.Id,
-            Namespace = serviceDto.Namespace,
-            ServiceName = serviceDto.ServiceName,
-            ExternalIp = serviceDto.ExternalIp,
-            Ports = serviceDto.Ports
-        };
-
-        _context.Services.Add(service);
-        
-        try
-        {
-            await _context.SaveChangesAsync();
-        }
-        catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("unique constraint") == true)
-        {
-            return Conflict($"A service with name '{serviceDto.ServiceName}' already exists in namespace '{serviceDto.Namespace}' for cluster '{serviceDto.ClusterName}'");
-        }
-
-        return CreatedAtAction(nameof(GetServices), new { id = service.Id }, service);
-    }
-
-    [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateService(int id, Service service)
-    {
-        if (id != service.Id)
-        {
-            return BadRequest();
-        }
-
-        _context.Entry(service).State = EntityState.Modified;
-
-        try
-        {
-            await _context.SaveChangesAsync();
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            if (!ServiceExists(id))
-            {
-                return NotFound();
-            }
-            throw;
-        }
-
-        return NoContent();
-    }
-
-    [HttpDelete("{id}")]
-    public async Task<IActionResult> DeleteService(int id)
-    {
-        var service = await _context.Services.FindAsync(id);
+        var service = await _kubernetesService.GetServiceAsync(id);
         if (service == null)
         {
             return NotFound();
         }
 
-        _context.Services.Remove(service);
-        await _context.SaveChangesAsync();
-
-        return NoContent();
+        return service;
     }
 
-    private bool ServiceExists(int id)
+    [HttpPost]
+    public async Task<ActionResult<Service>> CreateService(ServiceCreateDto serviceDto)
     {
-        return _context.Services.Any(e => e.Id == id);
+        try
+        {
+            var service = await _kubernetesService.CreateServiceAsync(serviceDto);
+            return CreatedAtAction(nameof(GetService), new { id = service.Id }, service);
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (DbUpdateException ex)
+        {
+            return Conflict(ex.Message);
+        }
+    }
+
+    [HttpPut("{id}")]
+    public async Task<IActionResult> UpdateService(int id, ServiceCreateDto serviceDto)
+    {
+        try
+        {
+            await _kubernetesService.UpdateServiceAsync(id, serviceDto);
+            return NoContent();
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (DbUpdateException ex)
+        {
+            return Conflict(ex.Message);
+        }
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> DeleteService(int id)
+    {
+        try
+        {
+            await _kubernetesService.DeleteServiceAsync(id);
+            return NoContent();
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
     }
 }

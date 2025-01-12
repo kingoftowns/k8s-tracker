@@ -8,106 +8,86 @@ namespace KubernetesTracker.Api.Controllers;
 [Route("api/[controller]")]
 public class ingressController : ControllerBase
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IIngressService _ingressService;
 
-    public ingressController(ApplicationDbContext context)
+    public ingressController(IIngressService ingressService)
     {
-        _context = context;
+        _ingressService = ingressService;
     }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Ingress>>> GetIngresses()
     {
-        return await _context.Ingresses
-            .Include(i => i.Cluster)
-            .ToListAsync();
+        var ingresses = await _ingressService.GetAllIngressesAsync();
+        return Ok(ingresses);
     }
 
     [HttpGet("cluster/{clusterName}")]
     public async Task<ActionResult<IEnumerable<Ingress>>> GetIngressesByCluster(string clusterName)
     {
-        return await _context.Ingresses
-            .Include(i => i.Cluster)
-            .Where(i => i.Cluster.ClusterName == clusterName)
-            .ToListAsync();
+        var ingresses = await _ingressService.GetIngressesByClusterAsync(clusterName);
+        return Ok(ingresses);
     }
 
-    [HttpPost]
-    public async Task<ActionResult<Ingress>> CreateIngress(IngressCreateDto ingressDto)
+    [HttpGet("{id}")]
+    public async Task<ActionResult<Ingress>> GetIngress(int id)
     {
-        var cluster = await _context.Clusters
-            .FirstOrDefaultAsync(c => c.ClusterName == ingressDto.ClusterName);
-
-        if (cluster == null)
-        {
-            return NotFound($"Cluster '{ingressDto.ClusterName}' not found");
-        }
-
-        var ingress = new Ingress
-        {
-            ClusterId = cluster.Id,
-            Namespace = ingressDto.Namespace,
-            IngressName = ingressDto.IngressName,
-            Hosts = ingressDto.Hosts
-        };
-
-        _context.Ingresses.Add(ingress);
-        
-        try
-        {
-            await _context.SaveChangesAsync();
-        }
-        catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("unique constraint") == true)
-        {
-            return Conflict($"An ingress with name '{ingressDto.IngressName}' already exists in namespace '{ingressDto.Namespace}' for cluster '{ingressDto.ClusterName}'");
-        }
-
-        return CreatedAtAction(nameof(GetIngresses), new { id = ingress.Id }, ingress);
-    }
-
-    [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateIngress(int id, Ingress ingress)
-    {
-        if (id != ingress.Id)
-        {
-            return BadRequest();
-        }
-
-        _context.Entry(ingress).State = EntityState.Modified;
-
-        try
-        {
-            await _context.SaveChangesAsync();
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            if (!IngressExists(id))
-            {
-                return NotFound();
-            }
-            throw;
-        }
-
-        return NoContent();
-    }
-
-    [HttpDelete("{id}")]
-    public async Task<IActionResult> DeleteIngress(int id)
-    {
-        var ingress = await _context.Ingresses.FindAsync(id);
+        var ingress = await _ingressService.GetIngressAsync(id);
         if (ingress == null)
         {
             return NotFound();
         }
 
-        _context.Ingresses.Remove(ingress);
-        await _context.SaveChangesAsync();
-
-        return NoContent();
+        return ingress;
     }
 
-    private bool IngressExists(int id)
+    [HttpPost]
+    public async Task<ActionResult<Ingress>> CreateIngress(IngressCreateDto ingressDto)
     {
-        return _context.Ingresses.Any(e => e.Id == id);
+        try
+        {
+            var ingress = await _ingressService.CreateIngressAsync(ingressDto);
+            return CreatedAtAction(nameof(GetIngress), new { id = ingress.Id }, ingress);
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (DbUpdateException ex)
+        {
+            return Conflict(ex.Message);
+        }
+    }
+
+    [HttpPut("{id}")]
+    public async Task<IActionResult> UpdateIngress(int id, IngressCreateDto ingressDto)
+    {
+        try
+        {
+            await _ingressService.UpdateIngressAsync(id, ingressDto);
+            return NoContent();
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
+        catch (DbUpdateException ex)
+        {
+            return Conflict(ex.Message);
+        }
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> DeleteIngress(int id)
+    {
+        try
+        {
+            await _ingressService.DeleteIngressAsync(id);
+            return NoContent();
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(ex.Message);
+        }
     }
 }

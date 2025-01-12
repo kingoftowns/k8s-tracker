@@ -21,6 +21,8 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 #endif
 
 builder.Services.AddScoped<IClusterService, ClusterService>();
+builder.Services.AddScoped<IIngressService, IngressService>();
+builder.Services.AddScoped<IKubernetesService, KubernetesService>();
 
 var app = builder.Build();
 
