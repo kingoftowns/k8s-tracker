@@ -51,24 +51,13 @@ public class IngressService : IIngressService
             throw new NotFoundException($"Cluster '{ingressDto.ClusterName}' not found");
         }
 
-        var existingIngress = await _context.Ingresses
-            .AnyAsync(i => i.Cluster.Id == cluster.Id && 
-                          i.Namespace == ingressDto.Namespace && 
-                          i.IngressName == ingressDto.IngressName);
-
-        if (existingIngress)
-        {
-            throw new DbUpdateException(
-                $"Ingress '{ingressDto.IngressName}' already exists in namespace '{ingressDto.Namespace}'",
-                new Exception("Unique constraint violation"));
-        }
-
         var ingress = new Ingress
         {
             ClusterId = cluster.Id,
             Namespace = ingressDto.Namespace,
             IngressName = ingressDto.IngressName,
             Hosts = ingressDto.Hosts,
+            Ports = ingressDto.Ports ?? new List<int>(),
             Cluster = cluster
         };
 
@@ -116,6 +105,7 @@ public class IngressService : IIngressService
         ingress.Namespace = ingressDto.Namespace;
         ingress.IngressName = ingressDto.IngressName;
         ingress.Hosts = ingressDto.Hosts;
+        ingress.Ports = ingressDto.Ports ?? new List<int>();
 
         await _context.SaveChangesAsync();
 
@@ -140,6 +130,7 @@ public class IngressService : IIngressService
         Namespace = ingress.Namespace,
         IngressName = ingress.IngressName,
         Hosts = ingress.Hosts,
+        Ports = ingress.Ports,
         ClusterName = ingress.Cluster.ClusterName,
         CreatedAt = ingress.CreatedAt,
         UpdatedAt = ingress.UpdatedAt

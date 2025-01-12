@@ -4,6 +4,7 @@ public class IngressCreateDto
     public string Namespace { get; set; } = null!;
     public string IngressName { get; set; } = null!;
     public List<string> Hosts { get; set; } = new();
+    public List<int> Ports { get; set; } = new();
 }
 
 public class IngressResponseDto : BaseEntity
@@ -12,5 +13,6 @@ public class IngressResponseDto : BaseEntity
     public string Namespace { get; set; } = null!;
     public string IngressName { get; set; } = null!;
     public List<string> Hosts { get; set; } = new();
+    public List<int> Ports { get; set; } = new();
     public string ClusterName { get; set; } = null!;
 }

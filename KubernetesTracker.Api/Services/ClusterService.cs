@@ -133,6 +133,7 @@ public class ClusterService : IClusterService
             Namespace = i.Namespace,
             IngressName = i.IngressName,
             Hosts = i.Hosts,
+            Ports = i.Ports,
             ClusterName = cluster.ClusterName,
             CreatedAt = i.CreatedAt,
             UpdatedAt = i.UpdatedAt

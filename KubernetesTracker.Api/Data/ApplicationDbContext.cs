@@ -18,6 +18,8 @@ namespace KubernetesTracker.Api.Data
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            base.OnModelCreating(modelBuilder);
+
             modelBuilder.Entity<Cluster>(entity =>
             {
                 entity.HasIndex(c => c.ClusterName)
@@ -29,22 +31,27 @@ namespace KubernetesTracker.Api.Data
                 entity.Property(c => c.KernelVersions)
                     .HasColumnType("text[]");
             });
-            
-            modelBuilder.Entity<Ingress>()
-                .HasIndex(i => new { i.ClusterId, i.Namespace, i.IngressName })
-                .IsUnique();
 
-            modelBuilder.Entity<Service>()
-                .HasIndex(s => new { s.ClusterId, s.Namespace, s.ServiceName })
-                .IsUnique();
+            modelBuilder.Entity<Ingress>(entity =>
+            {
+                entity.HasIndex(i => new { i.ClusterId, i.Namespace, i.IngressName })
+                    .IsUnique();
 
-            modelBuilder.Entity<Ingress>()
-                .Property(i => i.Hosts)
-                .HasColumnType("text[]");
+                entity.Property(i => i.Hosts)
+                    .HasColumnType("text[]");
 
-            modelBuilder.Entity<Service>()
-                .Property(s => s.Ports)
-                .HasColumnType("integer[]");
+                entity.Property(i => i.Ports)
+                    .HasColumnType("integer[]");
+            });
+
+            modelBuilder.Entity<Service>(entity =>
+            {
+                entity.HasIndex(s => new { s.ClusterId, s.Namespace, s.ServiceName })
+                    .IsUnique();
+
+                entity.Property(s => s.Ports)
+                    .HasColumnType("integer[]");
+            });
         }
 
         public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
