@@ -20,6 +20,8 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     });
 #endif
 
+builder.Services.AddScoped<IClusterService, ClusterService>();
+
 var app = builder.Build();
 
 app.UseSwagger();

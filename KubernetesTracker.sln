@@ -5,6 +5,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KubernetesTracker.Api", "KubernetesTracker.Api\KubernetesTracker.Api.csproj", "{CF8D7430-E6A9-4518-B1DA-C310C51131A2}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KubernetesTracker.Tests", "KubernetesTracker.Tests\KubernetesTracker.Tests.csproj", "{79D0E2E5-0B68-4C44-BE3A-EB099CAF6E30}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +20,9 @@ Global
 		{CF8D7430-E6A9-4518-B1DA-C310C51131A2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CF8D7430-E6A9-4518-B1DA-C310C51131A2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CF8D7430-E6A9-4518-B1DA-C310C51131A2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{79D0E2E5-0B68-4C44-BE3A-EB099CAF6E30}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{79D0E2E5-0B68-4C44-BE3A-EB099CAF6E30}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{79D0E2E5-0B68-4C44-BE3A-EB099CAF6E30}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{79D0E2E5-0B68-4C44-BE3A-EB099CAF6E30}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

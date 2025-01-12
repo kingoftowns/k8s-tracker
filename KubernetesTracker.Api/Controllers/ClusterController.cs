@@ -8,30 +8,24 @@ namespace KubernetesTracker.Api.Controllers;
 [Route("api/[controller]")]
 public class clustersController : ControllerBase
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IClusterService _clusterService;
 
-    public clustersController(ApplicationDbContext context)
+    public clustersController(IClusterService clusterService)
     {
-        _context = context;
+        _clusterService = clusterService;
     }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Cluster>>> GetClusters()
     {
-        return await _context.Clusters
-            .Include(c => c.Ingresses)
-            .Include(c => c.Services)
-            .ToListAsync();
+        var clusters = await _clusterService.GetAllClustersAsync();
+        return Ok(clusters);
     }
 
     [HttpGet("{id:int}")]
     public async Task<ActionResult<Cluster>> GetCluster(int id)
     {
-        var cluster = await _context.Clusters
-            .Include(c => c.Ingresses)
-            .Include(c => c.Services)
-            .FirstOrDefaultAsync(c => c.Id == id);
-
+        var cluster = await _clusterService.GetClusterByIdAsync(id);
         if (cluster == null)
         {
             return NotFound();
@@ -43,100 +37,61 @@ public class clustersController : ControllerBase
     [HttpGet("name/{name}")]
     public async Task<ActionResult<Cluster>> GetClusterByName(string name)
     {
-        var cluster = await _context.Clusters
-            .Include(c => c.Ingresses)
-            .Include(c => c.Services)
-            .FirstOrDefaultAsync(c => c.ClusterName == name);
-
+        var cluster = await _clusterService.GetClusterByNameAsync(name);
         if (cluster == null)
         {
-            return NotFound($"Cluster '{name}' not found");
+            return NotFound();
         }
 
         return cluster;
     }
 
-[HttpPost]
-public async Task<ActionResult<Cluster>> CreateCluster(ClusterCreateDto clusterDto)
-{
-    var cluster = new Cluster
+    [HttpPost]
+    public async Task<ActionResult<Cluster>> CreateCluster(ClusterCreateDto clusterDto)
     {
-        ClusterName = clusterDto.ClusterName,
-        ApiserverVersion = clusterDto.ApiserverVersion,
-        KubeletVersions = clusterDto.KubeletVersions.Distinct().ToList(),
-        KernelVersions = clusterDto.KernelVersions.Distinct().ToList(),
-        Ingresses = new List<Ingress>(),
-        Services = new List<Service>()
-    };
-
-    try
-    {
-        _context.Clusters.Add(cluster);
-        await _context.SaveChangesAsync();
-    }
-    catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("unique constraint") == true)
-    {
-        return Conflict($"A cluster with name '{clusterDto.ClusterName}' already exists");
+        try
+        {
+            var cluster = await _clusterService.CreateClusterAsync(clusterDto);
+            return CreatedAtAction(
+                nameof(GetCluster),
+                new { id = cluster.Id },
+                cluster);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("unique constraint") == true)
+        {
+            return Conflict($"A cluster with name '{clusterDto.ClusterName}' already exists");
+        }
     }
 
-    return CreatedAtAction(
-        nameof(GetCluster),
-        new { id = cluster.Id },
-        cluster);
-}
-
-[HttpPut("{id}")]
-public async Task<IActionResult> UpdateCluster(int id, ClusterCreateDto clusterDto)
-{
-    var cluster = await _context.Clusters.FindAsync(id);
-    
-    if (cluster == null)
+    [HttpPut("{id}")]
+    public async Task<IActionResult> UpdateCluster(int id, ClusterCreateDto clusterDto)
     {
-        return NotFound();
-    }
-
-    cluster.ClusterName = clusterDto.ClusterName;
-    cluster.ApiserverVersion = clusterDto.ApiserverVersion;
-    cluster.KubeletVersions = clusterDto.KubeletVersions.Distinct().ToList();
-    cluster.KernelVersions = clusterDto.KernelVersions.Distinct().ToList();
-
-    try
-    {
-        await _context.SaveChangesAsync();
-    }
-    catch (DbUpdateConcurrencyException)
-    {
-        if (!ClusterExists(id))
+        try
+        {
+            var cluster = await _clusterService.UpdateClusterAsync(id, clusterDto);
+            return NoContent();
+        }
+        catch (NotFoundException)
         {
             return NotFound();
         }
-        throw;
+        catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("unique constraint") == true)
+        {
+            return Conflict($"A cluster with name '{clusterDto.ClusterName}' already exists");
+        }
     }
-    catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("unique constraint") == true)
-    {
-        return Conflict($"A cluster with name '{clusterDto.ClusterName}' already exists");
-    }
-
-    return NoContent();
-}
 
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteCluster(int id)
     {
-        var cluster = await _context.Clusters.FindAsync(id);
-        if (cluster == null)
+        try
+        {
+            await _clusterService.DeleteClusterAsync(id);
+            return NoContent();
+        }
+        catch (NotFoundException)
         {
             return NotFound();
         }
-
-        _context.Clusters.Remove(cluster);
-        await _context.SaveChangesAsync();
-
-        return NoContent();
-    }
-
-    private bool ClusterExists(int id)
-    {
-        return _context.Clusters.Any(e => e.Id == id);
     }
 }
