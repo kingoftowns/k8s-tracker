@@ -20,5 +20,5 @@ variable "domain" {
 
 variable "namespace" {
   description = "The namespace to deploy the application"
-  type        = string 
+  type        = string
 }

@@ -35,3 +35,15 @@ module "ks8_tracker_ui" {
   domain          = var.domain
   namespace       = var.namespace
 }
+
+module "k8s_controller" {
+  source = "./modules/controller"
+
+  api_endpoint           = "https://cluster-info.k8s.blacktoaster.com"
+  app_name               = "k8s-controller"
+  ca_cert_configmap_name = "bt-ca"
+  configmap_name         = "cluster-identity"
+  controller_image       = "registry.k8s.blacktoaster.com/k8s-tracker/k8s-controller:latest"
+  namespace              = var.namespace
+  service_account_name   = "cluster-info-collector"
+}

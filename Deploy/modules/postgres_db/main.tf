@@ -86,7 +86,7 @@ resource "kubernetes_stateful_set" "postgres" {
       }
 
       spec {
-        
+
         node_selector = {
           hardware = "pi5"
         }

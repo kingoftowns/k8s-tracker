@@ -6,9 +6,10 @@ terraform {
   }
 }
 
+
 resource "kubernetes_deployment" "api" {
   metadata {
-    name      = "${var.app_name}-api"
+    name      = var.app_name
     namespace = var.namespace
   }
 
@@ -17,14 +18,14 @@ resource "kubernetes_deployment" "api" {
 
     selector {
       match_labels = {
-        app = "${var.app_name}-api"
+        app = "${var.app_name}"
       }
     }
 
     template {
       metadata {
         labels = {
-          app = "${var.app_name}-api"
+          app = "${var.app_name}"
         }
       }
 
@@ -40,19 +41,14 @@ resource "kubernetes_deployment" "api" {
           value    = "pi5"
           effect   = "NoSchedule"
         }
-        
+
         container {
-          name              = "api"
+          name              = var.app_name
           image             = var.container_image
           image_pull_policy = "Always"
 
           port {
             container_port = 80
-          }
-
-          env {
-            name  = "ConnectionStrings__DefaultConnection"
-            value = "Host=postgres;Database=${var.db_name};Username=${var.db_username};Password=${var.db_password}"
           }
         }
       }
@@ -70,7 +66,7 @@ resource "kubernetes_service" "api" {
     type = "ClusterIP"
 
     selector = {
-      app = "${var.app_name}-api"
+      app = "${var.app_name}"
     }
 
     port {
@@ -90,7 +86,7 @@ resource "kubectl_manifest" "certificate" {
       namespace = var.namespace
     }
     spec = {
-      commonName = "cluster-info.${var.domain}"
+      commonName = "clusters.${var.domain}"
       secretName = "${var.app_name}-tls"
       issuerRef = {
         name  = "vault-issuer"
@@ -98,7 +94,7 @@ resource "kubectl_manifest" "certificate" {
         group = "cert-manager.io"
       }
       dnsNames = [
-        "cluster-info.${var.domain}"
+        "clusters.${var.domain}"
       ]
     }
   })
@@ -112,18 +108,17 @@ resource "kubernetes_ingress_v1" "k8sTracker" {
       "nginx.ingress.kubernetes.io/ssl-redirect"     = "true"
       "nginx.ingress.kubernetes.io/backend-protocol" = "HTTP"
       "external-dns.alpha.kubernetes.io/target"      = var.cname_target
-      "nginx.ingress.kubernetes.io/app-root"         = "/swagger/index.html"
     }
   }
 
   spec {
     ingress_class_name = "nginx"
     tls {
-      hosts       = ["cluster-info.${var.domain}"]
+      hosts       = ["clusters.${var.domain}"]
       secret_name = "${var.app_name}-tls"
     }
     rule {
-      host = "cluster-info.${var.domain}"
+      host = "clusters.${var.domain}"
       http {
         path {
           path      = "/"

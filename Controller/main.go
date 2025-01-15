@@ -70,6 +70,13 @@ type ResourceWatcher struct {
 	config      *Config
 }
 
+type ClusterInfo struct {
+	ClusterName      string   `json:"clusterName"`
+	APIServerVersion string   `json:"apiServerVersion"`
+	KubeletVersions  []string `json:"kubeletVersions"`
+	KernelVersions   []string `json:"kernelVersions"`
+}
+
 type IngressPayload struct {
 	ClusterName string   `json:"clusterName"`
 	Namespace   string   `json:"namespace"`
@@ -141,6 +148,29 @@ func NewResourceWatcher(k8sConfig *rest.Config, appConfig *Config) (*ResourceWat
 }
 
 func (w *ResourceWatcher) WatchResources(ctx context.Context) error {
+	// Run initial cluster info collection
+	log.Printf("Performing initial cluster info collection...")
+	if err := w.collectAndSendClusterInfo(); err != nil {
+		return fmt.Errorf("initial cluster info collection failed: %v", err)
+	}
+	log.Printf("Initial cluster info collection completed successfully")
+
+	go func() {
+		ticker := time.NewTicker(4 * time.Hour)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := w.collectAndSendClusterInfo(); err != nil {
+					log.Printf("Periodic cluster info collection failed: %v", err)
+				}
+			}
+		}
+	}()
+
 	// Watch Ingresses
 	ingressListWatcher := cache.NewListWatchFromClient(
 		w.clientset.NetworkingV1().RESTClient(),
@@ -189,6 +219,121 @@ func (w *ResourceWatcher) WatchResources(ctx context.Context) error {
 
 	// Wait for context cancellation
 	<-ctx.Done()
+	return nil
+}
+
+func (w *ResourceWatcher) collectClusterInfo() (*ClusterInfo, error) {
+	serverVersion, err := w.clientset.Discovery().ServerVersion()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get server version: %v", err)
+	}
+
+	nodes, err := w.clientset.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list nodes: %v", err)
+	}
+
+	kernelVersions := make(map[string]struct{})
+	kubeletVersions := make(map[string]struct{})
+
+	for _, node := range nodes.Items {
+		kernelVersions[node.Status.NodeInfo.KernelVersion] = struct{}{}
+		kubeletVersions[node.Status.NodeInfo.KubeletVersion] = struct{}{}
+	}
+
+	kernelVersionsList := make([]string, 0, len(kernelVersions))
+	kubeletVersionsList := make([]string, 0, len(kubeletVersions))
+
+	for version := range kernelVersions {
+		kernelVersionsList = append(kernelVersionsList, version)
+	}
+	for version := range kubeletVersions {
+		kubeletVersionsList = append(kubeletVersionsList, version)
+	}
+
+	return &ClusterInfo{
+		ClusterName:      w.clusterName,
+		APIServerVersion: serverVersion.GitVersion,
+		KubeletVersions:  kubeletVersionsList,
+		KernelVersions:   kernelVersionsList,
+	}, nil
+}
+
+func (w *ResourceWatcher) sendClusterInfo(clusterInfo *ClusterInfo) error {
+	resp, err := w.httpClient.Get(
+		fmt.Sprintf("%s/api/clusters/name/%s", w.config.APIEndpoint, w.clusterName),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to check cluster existence: %v", err)
+	}
+	defer resp.Body.Close()
+
+	type ClusterResponse struct {
+		ID               int      `json:"id"`
+		ClusterName      string   `json:"clusterName"`
+		APIServerVersion string   `json:"apiserverVersion"`
+		KubeletVersions  []string `json:"kubeletVersions"`
+	}
+
+	var req *http.Request
+	jsonData, err := json.Marshal(clusterInfo)
+	if err != nil {
+		return fmt.Errorf("failed to marshal cluster info: %v", err)
+	}
+
+	if resp.StatusCode == http.StatusOK {
+		// Cluster exists, get its ID and update
+		var existingCluster ClusterResponse
+		if err := json.NewDecoder(resp.Body).Decode(&existingCluster); err != nil {
+			return fmt.Errorf("failed to decode existing cluster response: %v", err)
+		}
+
+		req, err = http.NewRequest(
+			http.MethodPut,
+			fmt.Sprintf("%s/api/clusters/%d", w.config.APIEndpoint, existingCluster.ID),
+			bytes.NewBuffer(jsonData),
+		)
+		log.Printf("Updating existing cluster with ID: %d", existingCluster.ID)
+	} else {
+		// Cluster doesn't exist, create new
+		req, err = http.NewRequest(
+			http.MethodPost,
+			fmt.Sprintf("%s/api/clusters", w.config.APIEndpoint),
+			bytes.NewBuffer(jsonData),
+		)
+		log.Printf("Creating new cluster entry")
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to create request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err = w.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("received non-OK response: %d - %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+func (w *ResourceWatcher) collectAndSendClusterInfo() error {
+	clusterInfo, err := w.collectClusterInfo()
+	if err != nil {
+		return fmt.Errorf("failed to collect cluster info: %v", err)
+	}
+
+	if err := w.sendClusterInfo(clusterInfo); err != nil {
+		return fmt.Errorf("failed to send cluster info: %v", err)
+	}
+
+	log.Printf("Successfully collected and sent cluster info for cluster: %s", w.clusterName)
 	return nil
 }
 
