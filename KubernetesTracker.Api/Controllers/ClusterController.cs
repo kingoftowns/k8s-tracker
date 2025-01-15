@@ -30,7 +30,7 @@ public class clustersController : ControllerBase
             return NotFound();
         }
 
-        return cluster;
+        return Ok(cluster);
     }
 
     [HttpGet("name/{name}")]
@@ -42,7 +42,7 @@ public class clustersController : ControllerBase
             return NotFound();
         }
 
-        return cluster;
+        return Ok(cluster);
     }
 
     [HttpPost]
@@ -67,8 +67,8 @@ public class clustersController : ControllerBase
     {
         try
         {
-            await _clusterService.UpdateClusterAsync(id, clusterDto);
-            return NoContent();
+            var cluster = await _clusterService.UpdateClusterAsync(id, clusterDto);
+            return Ok(cluster);
         }
         catch (NotFoundException ex)
         {
@@ -86,7 +86,7 @@ public class clustersController : ControllerBase
         try
         {
             await _clusterService.DeleteClusterAsync(id);
-            return NoContent();
+            return Ok();
         }
         catch (NotFoundException ex)
         {

@@ -37,7 +37,7 @@ public class ingressController : ControllerBase
             return NotFound($"Ingress with ID {id} not found");
         }
 
-        return ingress;
+        return Ok(ingress);
     }
 
     [HttpPost]
@@ -64,7 +64,7 @@ public class ingressController : ControllerBase
         try
         {
             var ingress = await _ingressService.UpdateIngressAsync(id, ingressDto);
-            return NoContent();
+            return Ok(ingress);
         }
         catch (NotFoundException ex)
         {
@@ -82,7 +82,7 @@ public class ingressController : ControllerBase
         try
         {
             await _ingressService.DeleteIngressAsync(id);
-            return NoContent();
+            return Ok();
         }
         catch (NotFoundException ex)
         {

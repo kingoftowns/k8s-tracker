@@ -37,7 +37,7 @@ public class serviceController : ControllerBase
             return NotFound($"Service with ID {id} not found");
         }
 
-        return service;
+        return Ok(service);
     }
 
     [HttpPost]
@@ -64,7 +64,7 @@ public class serviceController : ControllerBase
         try
         {
             var service = await _kubernetesService.UpdateServiceAsync(id, serviceDto);
-            return NoContent();
+            return Ok(service);
         }
         catch (NotFoundException ex)
         {
@@ -82,7 +82,7 @@ public class serviceController : ControllerBase
         try
         {
             await _kubernetesService.DeleteServiceAsync(id);
-            return NoContent();
+            return Ok();
         }
         catch (NotFoundException ex)
         {
