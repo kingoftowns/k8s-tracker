@@ -79,7 +79,7 @@ type IngressPayload struct {
 }
 
 type IngressResponse struct {
-	ID          string   `json:"id"`
+	ID          int      `json:"id"`
 	ClusterName string   `json:"clusterName"`
 	Namespace   string   `json:"namespace"`
 	IngressName string   `json:"ingressName"`
@@ -96,7 +96,7 @@ type ServicePayload struct {
 }
 
 type ServiceResponse struct {
-	ID          string  `json:"id"`
+	ID          int     `json:"id"`
 	ClusterName string  `json:"clusterName"`
 	Namespace   string  `json:"namespace"`
 	ServiceName string  `json:"serviceName"`
@@ -286,36 +286,37 @@ func (w *ResourceWatcher) handleIngressAdd(obj interface{}) {
 	}
 }
 
-func (w *ResourceWatcher) findIngressID(ingressName string) (string, error) {
+func (w *ResourceWatcher) findIngressID(ingressName string) (int, error) {
 	resp, err := w.httpClient.Get(
 		fmt.Sprintf("%s/api/ingress/cluster/%s", w.config.APIEndpoint, w.clusterName),
 	)
 	if err != nil {
-		return "", err
+		return 0, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return 0, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return 0, err
 	}
 
 	var ingresses []IngressResponse
 	if err := json.Unmarshal(body, &ingresses); err != nil {
-		return "", err
+		return 0, err
 	}
 
 	for _, ing := range ingresses {
 		if ing.IngressName == ingressName {
-			return ing.ID, nil
+			id := ing.ID
+			return id, nil
 		}
 	}
 
-	return "", fmt.Errorf("ingress not found")
+	return 0, fmt.Errorf("ingress not found")
 }
 
 func (w *ResourceWatcher) handleIngressUpdate(oldObj, newObj interface{}) {
@@ -338,7 +339,7 @@ func (w *ResourceWatcher) handleIngressUpdate(oldObj, newObj interface{}) {
 
 	req, err := http.NewRequest(
 		http.MethodPut,
-		fmt.Sprintf("%s/api/ingress/%s", w.config.APIEndpoint, id),
+		fmt.Sprintf("%s/api/ingress/%d", w.config.APIEndpoint, id),
 		bytes.NewBuffer(jsonData),
 	)
 	if err != nil {
@@ -372,7 +373,7 @@ func (w *ResourceWatcher) handleIngressDelete(obj interface{}) {
 	// Send delete request
 	req, err := http.NewRequest(
 		http.MethodDelete,
-		fmt.Sprintf("%s/api/ingress/%s", w.config.APIEndpoint, id),
+		fmt.Sprintf("%s/api/ingress/%d", w.config.APIEndpoint, id),
 		nil,
 	)
 	if err != nil {
@@ -421,36 +422,37 @@ func (w *ResourceWatcher) createServicePayload(service *corev1.Service) ServiceP
 	}
 }
 
-func (w *ResourceWatcher) findServiceID(serviceName string) (string, error) {
+func (w *ResourceWatcher) findServiceID(serviceName string) (int, error) {
 	resp, err := w.httpClient.Get(
 		fmt.Sprintf("%s/api/service/cluster/%s", w.config.APIEndpoint, w.clusterName),
 	)
 	if err != nil {
-		return "", err
+		return 0, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return 0, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return 0, err
 	}
 
 	var services []ServiceResponse
 	if err := json.Unmarshal(body, &services); err != nil {
-		return "", err
+		return 0, err
 	}
 
 	for _, svc := range services {
 		if svc.ServiceName == serviceName {
-			return svc.ID, nil
+			id := svc.ID
+			return id, nil
 		}
 	}
 
-	return "", fmt.Errorf("service not found")
+	return 0, fmt.Errorf("service not found")
 }
 
 func (w *ResourceWatcher) handleServiceAdd(obj interface{}) {
@@ -513,7 +515,7 @@ func (w *ResourceWatcher) handleServiceUpdate(oldObj, newObj interface{}) {
 
 	req, err := http.NewRequest(
 		http.MethodPut,
-		fmt.Sprintf("%s/api/service/%s", w.config.APIEndpoint, id),
+		fmt.Sprintf("%s/api/service/%d", w.config.APIEndpoint, id),
 		bytes.NewBuffer(jsonData),
 	)
 	if err != nil {
@@ -547,7 +549,7 @@ func (w *ResourceWatcher) handleServiceDelete(obj interface{}) {
 	// Send delete request
 	req, err := http.NewRequest(
 		http.MethodDelete,
-		fmt.Sprintf("%s/api/service/%s", w.config.APIEndpoint, id),
+		fmt.Sprintf("%s/api/service/%d", w.config.APIEndpoint, id),
 		nil,
 	)
 	if err != nil {

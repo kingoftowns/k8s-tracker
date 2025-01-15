@@ -12,9 +12,9 @@ provider "kubernetes" {
 
 locals {
   api_endpoint = "https://cluster-info.k8s.blacktoaster.com"
-  app_name = "k8s-watcher"
+  app_name = "k8s-controller"
   configmap_name = "cluster-identity"
-  container_image = "registry.k8s.blacktoaster.com/k8s-watcher:latest"
+  container_image = "registry.k8s.blacktoaster.com/k8s-controller:latest"
   namespace = "kube-system"
   service_account_name = "cluster-info-collector"
   ca_cert_configmap_name = "bt-ca"
