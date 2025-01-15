@@ -25,3 +25,13 @@ module "ks8_tracker_api" {
 
   depends_on = [module.ks8_tracker_db]
 }
+
+module "ks8_tracker_ui" {
+  source = "./modules/cluster_dash"
+
+  app_name        = "k8s-dashboard"
+  cname_target    = "in.k8s.blacktoaster.com"
+  container_image = "registry.k8s.blacktoaster.com/k8s-tracker/k8s-dashboard:latest"
+  domain          = var.domain
+  namespace       = var.namespace
+}
