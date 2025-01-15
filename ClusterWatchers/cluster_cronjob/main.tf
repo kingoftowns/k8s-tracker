@@ -87,8 +87,8 @@ resource "kubernetes_cron_job_v1" "collector" {
   spec {
     schedule                      = "0 */6 * * *"
     concurrency_policy           = "Forbid"
-    failed_jobs_history_limit    = 3
-    successful_jobs_history_limit = 3
+    failed_jobs_history_limit    = 1
+    successful_jobs_history_limit = 1
 
     job_template {
       metadata {

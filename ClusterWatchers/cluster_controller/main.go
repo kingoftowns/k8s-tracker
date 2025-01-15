@@ -132,7 +132,7 @@ func NewResourceWatcher(k8sConfig *rest.Config, appConfig *Config) (*ResourceWat
 			Timeout: 10 * time.Second,
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: true, // Only use this if you're sure about your endpoint
+					InsecureSkipVerify: true,
 				},
 			},
 		},
