@@ -284,6 +284,7 @@ func (w *ResourceWatcher) handleIngressAdd(obj interface{}) {
 		body, _ := io.ReadAll(resp.Body)
 		log.Printf("Unexpected status code: %d, body: %s", resp.StatusCode, string(body))
 	}
+	log.Printf("%s ingress added", ingress.Name)
 }
 
 func (w *ResourceWatcher) findIngressID(ingressName string) (int, error) {
@@ -358,6 +359,7 @@ func (w *ResourceWatcher) handleIngressUpdate(oldObj, newObj interface{}) {
 	if resp.StatusCode != http.StatusOK {
 		log.Printf("Unexpected status code: %d", resp.StatusCode)
 	}
+	log.Printf("%s ingress updated", ingress.Name)
 }
 
 func (w *ResourceWatcher) handleIngressDelete(obj interface{}) {
@@ -391,6 +393,7 @@ func (w *ResourceWatcher) handleIngressDelete(obj interface{}) {
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
 		log.Printf("Unexpected status code: %d", resp.StatusCode)
 	}
+	log.Printf("%s ingress deleted", ingress.Name)
 }
 
 func (w *ResourceWatcher) createServicePayload(service *corev1.Service) ServicePayload {
@@ -493,6 +496,7 @@ func (w *ResourceWatcher) handleServiceAdd(obj interface{}) {
 		body, _ := io.ReadAll(resp.Body)
 		log.Printf("Unexpected status code: %d, body: %s", resp.StatusCode, string(body))
 	}
+	log.Printf("%s service added", service.Name)
 }
 
 func (w *ResourceWatcher) handleServiceUpdate(oldObj, newObj interface{}) {
@@ -534,6 +538,7 @@ func (w *ResourceWatcher) handleServiceUpdate(oldObj, newObj interface{}) {
 	if resp.StatusCode != http.StatusOK {
 		log.Printf("Unexpected status code: %d", resp.StatusCode)
 	}
+	log.Printf("%s service updated", service.Name)
 }
 
 func (w *ResourceWatcher) handleServiceDelete(obj interface{}) {
@@ -567,6 +572,7 @@ func (w *ResourceWatcher) handleServiceDelete(obj interface{}) {
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
 		log.Printf("Unexpected status code: %d", resp.StatusCode)
 	}
+	log.Printf("%s service deleted", service.Name)
 }
 
 func main() {
