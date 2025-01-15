@@ -154,8 +154,10 @@ func (w *ResourceWatcher) WatchResources(ctx context.Context) error {
 		&networkingv1.Ingress{},
 		time.Second*30,
 		cache.ResourceEventHandlerFuncs{
-			AddFunc:    w.handleIngressAdd,
-			UpdateFunc: w.handleIngressUpdate,
+			AddFunc: w.handleIngressChange,
+			UpdateFunc: func(oldObj, newObj interface{}) {
+				w.handleIngressChange(newObj)
+			},
 			DeleteFunc: w.handleIngressDelete,
 		},
 	)
@@ -173,8 +175,10 @@ func (w *ResourceWatcher) WatchResources(ctx context.Context) error {
 		&corev1.Service{},
 		time.Second*30,
 		cache.ResourceEventHandlerFuncs{
-			AddFunc:    w.handleServiceAdd,
-			UpdateFunc: w.handleServiceUpdate,
+			AddFunc: w.handleServiceChange,
+			UpdateFunc: func(oldObj, newObj interface{}) {
+				w.handleServiceChange(newObj)
+			},
 			DeleteFunc: w.handleServiceDelete,
 		},
 	)
@@ -246,47 +250,6 @@ func uniquePorts(ports []int32) []int32 {
 	return unique
 }
 
-func (w *ResourceWatcher) handleIngressAdd(obj interface{}) {
-	if obj == nil {
-		log.Printf("Error: received nil object in handleIngressAdd")
-		return
-	}
-
-	ingress, ok := obj.(*networkingv1.Ingress)
-	if !ok {
-		log.Printf("Error: unexpected type for ingress object")
-		return
-	}
-
-	payload := w.createIngressPayload(ingress)
-	if payload.Hosts == nil {
-		payload.Hosts = []string{}
-	}
-
-	jsonData, err := json.Marshal(payload)
-	if err != nil {
-		log.Printf("Error marshaling payload: %v", err)
-		return
-	}
-
-	resp, err := w.httpClient.Post(
-		fmt.Sprintf("%s/api/ingress", w.config.APIEndpoint),
-		"application/json",
-		bytes.NewBuffer(jsonData),
-	)
-	if err != nil {
-		log.Printf("Error making POST request: %v", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(resp.Body)
-		log.Printf("Unexpected status code: %d, body: %s", resp.StatusCode, string(body))
-	}
-	log.Printf("%s ingress added", ingress.Name)
-}
-
 func (w *ResourceWatcher) findIngressID(ingressName string) (int, error) {
 	resp, err := w.httpClient.Get(
 		fmt.Sprintf("%s/api/ingress/cluster/%s", w.config.APIEndpoint, w.clusterName),
@@ -320,59 +283,86 @@ func (w *ResourceWatcher) findIngressID(ingressName string) (int, error) {
 	return 0, fmt.Errorf("ingress not found")
 }
 
-func (w *ResourceWatcher) handleIngressUpdate(oldObj, newObj interface{}) {
-	ingress := newObj.(*networkingv1.Ingress)
-
-	// Find the ingress ID
-	id, err := w.findIngressID(ingress.Name)
-	if err != nil {
-		log.Printf("Error finding ingress ID: %v", err)
+func (w *ResourceWatcher) handleIngressChange(obj interface{}) {
+	if obj == nil {
+		log.Printf("Error: received nil object in handleIngressChange")
 		return
 	}
 
-	// Create and send update request
+	ingress, ok := obj.(*networkingv1.Ingress)
+	if !ok {
+		log.Printf("Error: unexpected type for ingress object")
+		return
+	}
+
 	payload := w.createIngressPayload(ingress)
+	if payload.Hosts == nil {
+		payload.Hosts = []string{}
+	}
+
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
 		log.Printf("Error marshaling payload: %v", err)
 		return
 	}
 
-	req, err := http.NewRequest(
-		http.MethodPut,
-		fmt.Sprintf("%s/api/ingress/%d", w.config.APIEndpoint, id),
-		bytes.NewBuffer(jsonData),
-	)
+	// Try to find if the ingress already exists
+	id, err := w.findIngressID(ingress.Name)
+	var req *http.Request
+	var actionType string
+
+	if err == nil {
+		// Ingress exists, do PUT
+		req, err = http.NewRequest(
+			http.MethodPut,
+			fmt.Sprintf("%s/api/ingress/%d", w.config.APIEndpoint, id),
+			bytes.NewBuffer(jsonData),
+		)
+		actionType = "UPDATE"
+	} else {
+		// Ingress doesn't exist, do POST
+		req, err = http.NewRequest(
+			http.MethodPost,
+			fmt.Sprintf("%s/api/ingress", w.config.APIEndpoint),
+			bytes.NewBuffer(jsonData),
+		)
+		actionType = "CREATE"
+	}
+
 	if err != nil {
 		log.Printf("Error creating request: %v", err)
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
 
+	log.Printf("API %s Request - Ingress %s/%s - URL: %s", actionType, ingress.Namespace, ingress.Name, req.URL.String())
+
 	resp, err := w.httpClient.Do(req)
 	if err != nil {
-		log.Printf("Error making PUT request: %v", err)
+		log.Printf("Error making HTTP request: %v", err)
 		return
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		log.Printf("Unexpected status code: %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(resp.Body)
+		log.Printf("API %s Response - Ingress %s/%s - Status: %d, Error: %s",
+			actionType, ingress.Namespace, ingress.Name, resp.StatusCode, string(body))
+	} else {
+		log.Printf("API %s Response - Ingress %s/%s - Status: %d",
+			actionType, ingress.Namespace, ingress.Name, resp.StatusCode)
 	}
-	log.Printf("%s ingress updated", ingress.Name)
 }
 
 func (w *ResourceWatcher) handleIngressDelete(obj interface{}) {
 	ingress := obj.(*networkingv1.Ingress)
 
-	// Find the ingress ID
 	id, err := w.findIngressID(ingress.Name)
 	if err != nil {
 		log.Printf("Error finding ingress ID: %v", err)
 		return
 	}
 
-	// Send delete request
 	req, err := http.NewRequest(
 		http.MethodDelete,
 		fmt.Sprintf("%s/api/ingress/%d", w.config.APIEndpoint, id),
@@ -383,6 +373,8 @@ func (w *ResourceWatcher) handleIngressDelete(obj interface{}) {
 		return
 	}
 
+	log.Printf("API DELETE Request - Ingress %s/%s - URL: %s", ingress.Namespace, ingress.Name, req.URL.String())
+
 	resp, err := w.httpClient.Do(req)
 	if err != nil {
 		log.Printf("Error making DELETE request: %v", err)
@@ -391,9 +383,13 @@ func (w *ResourceWatcher) handleIngressDelete(obj interface{}) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
-		log.Printf("Unexpected status code: %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		log.Printf("API DELETE Response - Ingress %s/%s - Status: %d, Error: %s",
+			ingress.Namespace, ingress.Name, resp.StatusCode, string(body))
+	} else {
+		log.Printf("API DELETE Response - Ingress %s/%s - Status: %d",
+			ingress.Namespace, ingress.Name, resp.StatusCode)
 	}
-	log.Printf("%s ingress deleted", ingress.Name)
 }
 
 func (w *ResourceWatcher) createServicePayload(service *corev1.Service) ServicePayload {
@@ -458,9 +454,9 @@ func (w *ResourceWatcher) findServiceID(serviceName string) (int, error) {
 	return 0, fmt.Errorf("service not found")
 }
 
-func (w *ResourceWatcher) handleServiceAdd(obj interface{}) {
+func (w *ResourceWatcher) handleServiceChange(obj interface{}) {
 	if obj == nil {
-		log.Printf("Error: received nil object in handleServiceAdd")
+		log.Printf("Error: received nil object in handleServiceChange")
 		return
 	}
 
@@ -481,77 +477,63 @@ func (w *ResourceWatcher) handleServiceAdd(obj interface{}) {
 		return
 	}
 
-	resp, err := w.httpClient.Post(
-		fmt.Sprintf("%s/api/service", w.config.APIEndpoint),
-		"application/json",
-		bytes.NewBuffer(jsonData),
-	)
-	if err != nil {
-		log.Printf("Error making POST request: %v", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(resp.Body)
-		log.Printf("Unexpected status code: %d, body: %s", resp.StatusCode, string(body))
-	}
-	log.Printf("%s service added", service.Name)
-}
-
-func (w *ResourceWatcher) handleServiceUpdate(oldObj, newObj interface{}) {
-	service := newObj.(*corev1.Service)
-
-	// Find the service ID
+	// Try to find if the service exists
 	id, err := w.findServiceID(service.Name)
-	if err != nil {
-		log.Printf("Error finding service ID: %v", err)
-		return
+	var req *http.Request
+	var actionType string
+
+	if err == nil {
+		// Service exists, do PUT
+		req, err = http.NewRequest(
+			http.MethodPut,
+			fmt.Sprintf("%s/api/service/%d", w.config.APIEndpoint, id),
+			bytes.NewBuffer(jsonData),
+		)
+		actionType = "UPDATE"
+	} else {
+		// Service doesn't exist, do POST
+		req, err = http.NewRequest(
+			http.MethodPost,
+			fmt.Sprintf("%s/api/service", w.config.APIEndpoint),
+			bytes.NewBuffer(jsonData),
+		)
+		actionType = "CREATE"
 	}
 
-	// Create and send update request
-	payload := w.createServicePayload(service)
-	jsonData, err := json.Marshal(payload)
-	if err != nil {
-		log.Printf("Error marshaling payload: %v", err)
-		return
-	}
-
-	req, err := http.NewRequest(
-		http.MethodPut,
-		fmt.Sprintf("%s/api/service/%d", w.config.APIEndpoint, id),
-		bytes.NewBuffer(jsonData),
-	)
 	if err != nil {
 		log.Printf("Error creating request: %v", err)
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
 
+	log.Printf("API %s Request - Service %s/%s - URL: %s", actionType, service.Namespace, service.Name, req.URL.String())
+
 	resp, err := w.httpClient.Do(req)
 	if err != nil {
-		log.Printf("Error making PUT request: %v", err)
+		log.Printf("Error making HTTP request: %v", err)
 		return
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		log.Printf("Unexpected status code: %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(resp.Body)
+		log.Printf("API %s Response - Service %s/%s - Status: %d, Error: %s",
+			actionType, service.Namespace, service.Name, resp.StatusCode, string(body))
+	} else {
+		log.Printf("API %s Response - Service %s/%s - Status: %d",
+			actionType, service.Namespace, service.Name, resp.StatusCode)
 	}
-	log.Printf("%s service updated", service.Name)
 }
 
 func (w *ResourceWatcher) handleServiceDelete(obj interface{}) {
 	service := obj.(*corev1.Service)
 
-	// Find the service ID
 	id, err := w.findServiceID(service.Name)
 	if err != nil {
 		log.Printf("Error finding service ID: %v", err)
 		return
 	}
 
-	// Send delete request
 	req, err := http.NewRequest(
 		http.MethodDelete,
 		fmt.Sprintf("%s/api/service/%d", w.config.APIEndpoint, id),
@@ -562,6 +544,8 @@ func (w *ResourceWatcher) handleServiceDelete(obj interface{}) {
 		return
 	}
 
+	log.Printf("API DELETE Request - Service %s/%s - URL: %s", service.Namespace, service.Name, req.URL.String())
+
 	resp, err := w.httpClient.Do(req)
 	if err != nil {
 		log.Printf("Error making DELETE request: %v", err)
@@ -570,9 +554,13 @@ func (w *ResourceWatcher) handleServiceDelete(obj interface{}) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
-		log.Printf("Unexpected status code: %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		log.Printf("API DELETE Response - Service %s/%s - Status: %d, Error: %s",
+			service.Namespace, service.Name, resp.StatusCode, string(body))
+	} else {
+		log.Printf("API DELETE Response - Service %s/%s - Status: %d",
+			service.Namespace, service.Name, resp.StatusCode)
 	}
-	log.Printf("%s service deleted", service.Name)
 }
 
 func main() {
