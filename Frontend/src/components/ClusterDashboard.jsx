@@ -2,24 +2,38 @@ import { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Server, Globe, Network } from 'lucide-react';
 
 const ClusterDashboard = () => {
+  const [globalSearchTerm, setGlobalSearchTerm] = useState('');
+
   return (
     <div className="min-h-screen bg-gray-100 p-8">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-800 mb-8">Kubernetes Clusters</h1>
-        <ClusterList />
+        <h1 className="text-3xl font-bold text-gray-800 mb-4">Kubernetes Clusters</h1>
+        
+        {/* Global Search Bar */}
+        <div className="mb-6 flex gap-4">
+            <input
+              type="text"
+              placeholder="Search across all clusters..."
+              value={globalSearchTerm}
+              onChange={(e) => setGlobalSearchTerm(e.target.value)}
+              className="flex-1 p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+  
+          <ClusterList globalFilter={globalSearchTerm} />
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
-const ClusterList = () => {
+const ClusterList = ({ globalFilter }) => {
   const [clusters, setClusters] = useState([]);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const fetchClusters = async () => {
     try {
-      const response = await fetch('https://cluster-info.k8s.blacktoaster.com/api/clusters');
+      const response = await fetch(`${process.env.REACT_APP_CLUSTER_API_URL}/api/clusters`);
       if (!response.ok) {
         throw new Error('Failed to fetch clusters');
       }
@@ -43,24 +57,55 @@ const ClusterList = () => {
     return () => clearInterval(interval);
   }, []);
 
+  const hasMatchingItems = (cluster, searchTerm) => {
+    const term = searchTerm.toLowerCase();
+    const matchesFilter = (item) => 
+      item.namespace.toLowerCase().includes(term) ||
+      (item.serviceName?.toLowerCase().includes(term)) ||
+      (item.ingressName?.toLowerCase().includes(term)) ||
+      (item.hosts?.some(host => host.toLowerCase().includes(term))) ||
+      (item.externalIp?.toLowerCase().includes(term)) ||
+      (item.ports?.some(port => port.toString().includes(term)));
+
+    return cluster.services.some(matchesFilter) || 
+           cluster.ingresses.some(matchesFilter);
+  };
+
   if (error) return <div className="text-red-500">Error: {error}</div>;
   if (loading) return <div className="text-gray-500">Loading clusters...</div>;
 
   return (
     <div className="space-y-4">
-      {clusters.map(cluster => (
-        <ClusterCard key={cluster.id} cluster={cluster} />
-      ))}
+      {clusters.length === 0 ? (
+        <div className="text-gray-500 text-center py-8">
+          No clusters found
+        </div>
+      ) : (
+        clusters.map(cluster => (
+          <ClusterCard 
+            key={cluster.id} 
+            cluster={cluster} 
+            globalFilter={globalFilter}
+            autoExpand={globalFilter !== '' && hasMatchingItems(cluster, globalFilter)}
+          />
+        ))
+      )}
     </div>
   );
 };
 
-const ClusterCard = ({ cluster }) => {
+const ClusterCard = ({ cluster, globalFilter, autoExpand }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [localSearchTerm, setLocalSearchTerm] = useState('');
   const [selectedServiceType, setSelectedServiceType] = useState('');
 
-  const serviceTypes = [...new Set(cluster.services.map(service => service.serviceType))];
+  const searchTerm = localSearchTerm || globalFilter;
+
+  useEffect(() => {
+    if (autoExpand) {
+      setIsExpanded(true);
+    }
+  }, [autoExpand]);
   
   const filterItems = (items, term, type) => {
     let filtered = items;
@@ -72,16 +117,16 @@ const ClusterCard = ({ cluster }) => {
       );
     }
 
-    if (term.trim()) {
-      const loweredTerm = term.toLowerCase();
-      filtered = filtered.filter(item => 
-        item.namespace.toLowerCase().includes(loweredTerm) ||
-        (item.ingressName?.toLowerCase().includes(loweredTerm)) ||
-        (item.serviceName?.toLowerCase().includes(loweredTerm)) ||
-        (item.hosts?.some(host => host.toLowerCase().includes(loweredTerm))) ||
-        (item.ports?.some(port => port.toString().includes(term)))
-      );
-    }
+    const searchTerm = term.trim().toLowerCase();
+      if (searchTerm) {
+        filtered = filtered.filter(item => 
+          item.namespace.toLowerCase().includes(searchTerm) ||
+          (item.ingressName?.toLowerCase().includes(searchTerm)) ||
+          (item.serviceName?.toLowerCase().includes(searchTerm)) ||
+          (item.hosts?.some(host => host.toLowerCase().includes(searchTerm))) ||
+          (item.ports?.some(port => port.toString().includes(searchTerm)))
+        );
+      }
 
     return filtered;
   };
@@ -91,7 +136,7 @@ const ClusterCard = ({ cluster }) => {
 
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden">
-            <button 
+      <button 
         onClick={() => setIsExpanded(!isExpanded)}
         className="w-full p-4 flex items-center justify-between hover:bg-gray-50"
       >
@@ -122,29 +167,27 @@ const ClusterCard = ({ cluster }) => {
       </button>
 
       {isExpanded && (
-        <div className="p-4 border-t border-gray-200">
-          <div className="mb-4 flex gap-4">
-            {/* Text search */}
-            <input
-              type="text"
-              placeholder="Filter services and ingresses..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1 p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-            
-            {/* Service type filter */}
-            <select
-              value={selectedServiceType}
-              onChange={(e) => setSelectedServiceType(e.target.value)}
-              className="p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">All Service Types</option>
-              {serviceTypes.map(type => (
-                <option key={type} value={type}>{type}</option>
-              ))}
-            </select>
-          </div>
+          <div className="p-4 border-t border-gray-200">
+            <div className="mb-4 flex gap-4">
+              <input
+                type="text"
+                placeholder="Filter this cluster..."
+                value={localSearchTerm}
+                onChange={(e) => setLocalSearchTerm(e.target.value)}
+                className="flex-1 p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              <select
+                value={selectedServiceType}
+                onChange={(e) => setSelectedServiceType(e.target.value)}
+                className="p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">All Service Types</option>
+                <option value="ClusterIP">ClusterIP</option>
+                <option value="LoadBalancer">LoadBalancer</option>
+                <option value="NodePort">NodePort</option>
+                <option value="ExternalName">ExternalName</option>
+              </select>
+            </div>
 
           <div className="grid grid-cols-2 gap-4">
             {/* Ingresses section */}

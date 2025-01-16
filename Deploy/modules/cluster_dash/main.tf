@@ -50,6 +50,11 @@ resource "kubernetes_deployment" "api" {
           port {
             container_port = 80
           }
+
+          env {
+            name  = "REACT_APP_CLUSTER_API_UR"
+            value = var.tracker_api_url
+          }
         }
       }
     }

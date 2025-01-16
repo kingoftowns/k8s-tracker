@@ -22,3 +22,8 @@ variable "namespace" {
   description = "The namespace to deploy the application"
   type        = string
 }
+
+variable "tracker_api_url" {
+  description = "The URL for the tracker API"
+  type        = string
+}

@@ -34,6 +34,7 @@ module "ks8_tracker_ui" {
   container_image = "registry.k8s.blacktoaster.com/k8s-tracker/k8s-dashboard:latest"
   domain          = var.domain
   namespace       = var.namespace
+  tracker_api_url = "https://cluster-info.k8s.blacktoaster.com"
 }
 
 module "k8s_controller" {
