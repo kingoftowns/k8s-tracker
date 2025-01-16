@@ -57,6 +57,23 @@ const ClusterList = () => {
 
 const ClusterCard = ({ cluster }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Filter function
+  const filterItems = (items, term) => {
+    if (!term.trim()) return items;
+    const loweredTerm = term.toLowerCase();
+    return items.filter(item => 
+      item.namespace.toLowerCase().includes(loweredTerm) ||
+      (item.ingressName?.toLowerCase().includes(loweredTerm)) ||
+      (item.serviceName?.toLowerCase().includes(loweredTerm)) ||
+      (item.hosts?.some(host => host.toLowerCase().includes(loweredTerm))) ||
+      (item.ports?.some(port => port.toString().includes(term)))
+    );
+  };
+
+  const filteredIngresses = filterItems(cluster.ingresses, searchTerm);
+  const filteredServices = filterItems(cluster.services, searchTerm);
 
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden">
@@ -64,33 +81,53 @@ const ClusterCard = ({ cluster }) => {
         onClick={() => setIsExpanded(!isExpanded)}
         className="w-full p-4 flex items-center justify-between hover:bg-gray-50"
       >
-        <div className="flex items-center space-x-3">
-          <Server className="h-5 w-5 text-blue-500" />
-          <div className="text-left">
-            <h2 className="text-lg font-semibold text-gray-800">{cluster.clusterName}</h2>
-            <p className="text-sm text-gray-500">API Version: {cluster.apiserverVersion}</p>
-            <div className="text-sm text-gray-500">
-              <p>Kubelet Versions: {cluster.kubeletVersions.join(', ')}</p>
-              <p>Kernel Versions: {cluster.kernelVersions.join(', ')}</p>
+        <div className="flex items-center space-x-4 w-full">
+          <Server className="h-6 w-6 text-blue-500 flex-shrink-0" />
+          <div className="text-left w-full">
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">{cluster.clusterName}</h2>
+            <div>
+              <div className="flex items-center text-gray-600">
+                <span className="w-32 text-sm font-medium">API Version:</span>
+                <span className="text-sm">{cluster.apiserverVersion}</span>
+              </div>
+              <div className="flex items-center text-gray-600">
+                <span className="w-32 text-sm font-medium">Kubelet Versions:</span>
+                <span className="text-sm">[ {cluster.kubeletVersions.join(', ')} ]</span>
+              </div>
+              <div className="flex items-center text-gray-600">
+                <span className="w-32 text-sm font-medium">Kernel Versions:</span>
+                <span className="text-sm">[ {cluster.kernelVersions.join(', ')} ]</span>
+              </div>
             </div>
           </div>
+          {isExpanded ? 
+            <ChevronDown className="h-5 w-5 text-gray-400 flex-shrink-0" /> : 
+            <ChevronRight className="h-5 w-5 text-gray-400 flex-shrink-0" />
+          }
         </div>
-        {isExpanded ? 
-          <ChevronDown className="h-5 w-5 text-gray-400" /> : 
-          <ChevronRight className="h-5 w-5 text-gray-400" />
-        }
       </button>
 
       {isExpanded && (
         <div className="p-4 border-t border-gray-200">
+          {/* Search Input */}
+          <div className="mb-4">
+            <input
+              type="text"
+              placeholder="Filter services and ingresses..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <h3 className="flex items-center text-lg font-semibold text-gray-800 mb-3">
                 <Globe className="h-5 w-5 text-green-500 mr-2" />
-                Ingresses
+                Ingresses ({filteredIngresses.length})
               </h3>
               <div className="space-y-2">
-                {cluster.ingresses.map(ingress => (
+                {filteredIngresses.map(ingress => (
                   <div key={ingress.id} className="p-3 bg-gray-50 rounded-md">
                     <div className="font-medium text-gray-800">{ingress.ingressName}</div>
                     <div className="text-sm text-gray-500">Namespace: {ingress.namespace}</div>
@@ -104,8 +141,10 @@ const ClusterCard = ({ cluster }) => {
                     )}
                   </div>
                 ))}
-                {cluster.ingresses.length === 0 && (
-                  <div className="text-gray-500 text-sm">No ingresses found</div>
+                {filteredIngresses.length === 0 && (
+                  <div className="text-gray-500 text-sm">
+                    {searchTerm ? "No matching ingresses found" : "No ingresses found"}
+                  </div>
                 )}
               </div>
             </div>
@@ -113,10 +152,10 @@ const ClusterCard = ({ cluster }) => {
             <div>
               <h3 className="flex items-center text-lg font-semibold text-gray-800 mb-3">
                 <Network className="h-5 w-5 text-purple-500 mr-2" />
-                Services
+                Services ({filteredServices.length})
               </h3>
               <div className="space-y-2">
-                {cluster.services.map(service => (
+                {filteredServices.map(service => (
                   <div key={service.id} className="p-3 bg-gray-50 rounded-md">
                     <div className="font-medium text-gray-800">{service.serviceName}</div>
                     <div className="text-sm text-gray-500">Namespace: {service.namespace}</div>
@@ -130,8 +169,10 @@ const ClusterCard = ({ cluster }) => {
                     </div>
                   </div>
                 ))}
-                {cluster.services.length === 0 && (
-                  <div className="text-gray-500 text-sm">No services found</div>
+                {filteredServices.length === 0 && (
+                  <div className="text-gray-500 text-sm">
+                    {searchTerm ? "No matching services found" : "No services found"}
+                  </div>
                 )}
               </div>
             </div>
