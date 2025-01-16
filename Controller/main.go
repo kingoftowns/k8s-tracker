@@ -119,7 +119,6 @@ func NewResourceWatcher(k8sConfig *rest.Config, appConfig *Config) (*ResourceWat
 		return nil, fmt.Errorf("failed to create kubernetes clientset: %v", err)
 	}
 
-	// Get cluster name from ConfigMap
 	cm, err := clientset.CoreV1().ConfigMaps(appConfig.ConfigMapNamespace).Get(
 		context.Background(),
 		appConfig.ConfigMapName,
@@ -150,22 +149,24 @@ func NewResourceWatcher(k8sConfig *rest.Config, appConfig *Config) (*ResourceWat
 }
 
 func (w *ResourceWatcher) WatchResources(ctx context.Context) error {
-	// Run initial cluster info collection
-	log.Printf("Performing initial cluster info collection...")
+	// initial blocking run of cluster update
+	// make sure no service/ingress are attempted before a cluster exists in the db
 	if err := w.collectAndSendClusterInfo(); err != nil {
-		return fmt.Errorf("initial cluster info collection failed: %v", err)
+		log.Printf("Initial cluster info collection failed: %v", err)
 	}
-	log.Printf("Initial cluster info collection completed successfully")
 
 	go func() {
+		// check cluster info every 4 hours
 		ticker := time.NewTicker(4 * time.Hour)
 		defer ticker.Stop()
 
 		for {
 			select {
 			case <-ctx.Done():
+				log.Printf("Context cancelled: %v", ctx.Err())
 				return
 			case <-ticker.C:
+				log.Printf("Ticker fired at %v", time.Now())
 				if err := w.collectAndSendClusterInfo(); err != nil {
 					log.Printf("Periodic cluster info collection failed: %v", err)
 				}
@@ -173,7 +174,6 @@ func (w *ResourceWatcher) WatchResources(ctx context.Context) error {
 		}
 	}()
 
-	// Watch Ingresses
 	ingressListWatcher := cache.NewListWatchFromClient(
 		w.clientset.NetworkingV1().RESTClient(),
 		"ingresses",
@@ -184,7 +184,8 @@ func (w *ResourceWatcher) WatchResources(ctx context.Context) error {
 	_, ingressController := cache.NewInformer(
 		ingressListWatcher,
 		&networkingv1.Ingress{},
-		time.Second*30,
+		// resync every hour
+		time.Hour*1,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: w.handleIngressChange,
 			UpdateFunc: func(oldObj, newObj interface{}) {
@@ -194,7 +195,6 @@ func (w *ResourceWatcher) WatchResources(ctx context.Context) error {
 		},
 	)
 
-	// Watch Services
 	serviceListWatcher := cache.NewListWatchFromClient(
 		w.clientset.CoreV1().RESTClient(),
 		"services",
@@ -205,7 +205,8 @@ func (w *ResourceWatcher) WatchResources(ctx context.Context) error {
 	_, serviceController := cache.NewInformer(
 		serviceListWatcher,
 		&corev1.Service{},
-		time.Second*30,
+		// resync every hour
+		time.Hour*1,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: w.handleServiceChange,
 			UpdateFunc: func(oldObj, newObj interface{}) {
@@ -215,11 +216,9 @@ func (w *ResourceWatcher) WatchResources(ctx context.Context) error {
 		},
 	)
 
-	// Start controllers
 	go ingressController.Run(ctx.Done())
 	go serviceController.Run(ctx.Done())
 
-	// Wait for context cancellation
 	<-ctx.Done()
 	return nil
 }
@@ -560,7 +559,6 @@ func (w *ResourceWatcher) createServicePayload(service *corev1.Service) ServiceP
 	}
 
 	serviceType := service.Spec.Type
-	// or if Type is not set, it defaults to ClusterIP
 	if serviceType == "" {
 		serviceType = corev1.ServiceTypeClusterIP
 		log.Printf("Setting default service type to ClusterIP for %s/%s", service.Namespace, service.Name)
@@ -632,7 +630,6 @@ func (w *ResourceWatcher) handleServiceChange(obj interface{}) {
 		return
 	}
 
-	// Try to find if the service exists
 	id, err := w.findServiceID(service.Name)
 	var req *http.Request
 	var actionType string
@@ -719,29 +716,24 @@ func (w *ResourceWatcher) handleServiceDelete(obj interface{}) {
 }
 
 func main() {
-	// Load application config
 	appConfig, err := LoadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	// Get kubernetes config
 	k8sConfig, err := rest.InClusterConfig()
 	if err != nil {
 		log.Fatalf("Failed to get kubernetes config: %v", err)
 	}
 
-	// Create watcher
 	watcher, err := NewResourceWatcher(k8sConfig, appConfig)
 	if err != nil {
 		log.Fatalf("Failed to create watcher: %v", err)
 	}
 
-	// Create context with cancellation
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Start watching resources
 	if err := watcher.WatchResources(ctx); err != nil {
 		log.Fatalf("Error watching resources: %v", err)
 	}
