@@ -6,6 +6,6 @@ public class Service : BaseEntity
     public string ServiceName { get; set; } = null!;
     public string? ExternalIp { get; set; }
     public List<int> Ports { get; set; } = new();
-
+    public string ServiceType { get; set; } = null!;
     public Cluster Cluster { get; set; } = null!;
 }

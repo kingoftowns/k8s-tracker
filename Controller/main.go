@@ -100,6 +100,7 @@ type ServicePayload struct {
 	ServiceName string  `json:"serviceName"`
 	ExternalIP  string  `json:"externalIp"`
 	Ports       []int32 `json:"ports"`
+	ServiceType string  `json:"serviceType"`
 }
 
 type ServiceResponse struct {
@@ -109,6 +110,7 @@ type ServiceResponse struct {
 	ServiceName string  `json:"serviceName"`
 	ExternalIP  string  `json:"externalIp"`
 	Ports       []int32 `json:"ports"`
+	ServiceType string  `json:"serviceType"`
 }
 
 func NewResourceWatcher(k8sConfig *rest.Config, appConfig *Config) (*ResourceWatcher, error) {
@@ -557,12 +559,20 @@ func (w *ResourceWatcher) createServicePayload(service *corev1.Service) ServiceP
 		}
 	}
 
+	serviceType := service.Spec.Type
+	// or if Type is not set, it defaults to ClusterIP
+	if serviceType == "" {
+		serviceType = corev1.ServiceTypeClusterIP
+		log.Printf("Setting default service type to ClusterIP for %s/%s", service.Namespace, service.Name)
+	}
+
 	return ServicePayload{
 		ClusterName: w.clusterName,
 		Namespace:   service.Namespace,
 		ServiceName: service.Name,
 		ExternalIP:  externalIP,
 		Ports:       ports,
+		ServiceType: string(serviceType),
 	}
 }
 

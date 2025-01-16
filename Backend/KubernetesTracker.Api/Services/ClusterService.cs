@@ -145,6 +145,7 @@ public class ClusterService : IClusterService
             ServiceName = s.ServiceName,
             ExternalIp = s.ExternalIp,
             Ports = s.Ports,
+            ServiceType = s.ServiceType,
             ClusterName = cluster.ClusterName,
             CreatedAt = s.CreatedAt,
             UpdatedAt = s.UpdatedAt

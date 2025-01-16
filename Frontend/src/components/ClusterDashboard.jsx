@@ -58,26 +58,40 @@ const ClusterList = () => {
 const ClusterCard = ({ cluster }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedServiceType, setSelectedServiceType] = useState('');
 
-  // Filter function
-  const filterItems = (items, term) => {
-    if (!term.trim()) return items;
-    const loweredTerm = term.toLowerCase();
-    return items.filter(item => 
-      item.namespace.toLowerCase().includes(loweredTerm) ||
-      (item.ingressName?.toLowerCase().includes(loweredTerm)) ||
-      (item.serviceName?.toLowerCase().includes(loweredTerm)) ||
-      (item.hosts?.some(host => host.toLowerCase().includes(loweredTerm))) ||
-      (item.ports?.some(port => port.toString().includes(term)))
-    );
+  const serviceTypes = [...new Set(cluster.services.map(service => service.serviceType))];
+  
+  const filterItems = (items, term, type) => {
+    let filtered = items;
+
+    // First filter by type if selected
+    if (type) {
+      filtered = filtered.filter(item => 
+        'serviceType' in item ? item.serviceType === type : true
+      );
+    }
+
+    if (term.trim()) {
+      const loweredTerm = term.toLowerCase();
+      filtered = filtered.filter(item => 
+        item.namespace.toLowerCase().includes(loweredTerm) ||
+        (item.ingressName?.toLowerCase().includes(loweredTerm)) ||
+        (item.serviceName?.toLowerCase().includes(loweredTerm)) ||
+        (item.hosts?.some(host => host.toLowerCase().includes(loweredTerm))) ||
+        (item.ports?.some(port => port.toString().includes(term)))
+      );
+    }
+
+    return filtered;
   };
 
   const filteredIngresses = filterItems(cluster.ingresses, searchTerm);
-  const filteredServices = filterItems(cluster.services, searchTerm);
+  const filteredServices = filterItems(cluster.services, searchTerm, selectedServiceType);
 
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden">
-      <button 
+            <button 
         onClick={() => setIsExpanded(!isExpanded)}
         className="w-full p-4 flex items-center justify-between hover:bg-gray-50"
       >
@@ -109,18 +123,31 @@ const ClusterCard = ({ cluster }) => {
 
       {isExpanded && (
         <div className="p-4 border-t border-gray-200">
-          {/* Search Input */}
-          <div className="mb-4">
+          <div className="mb-4 flex gap-4">
+            {/* Text search */}
             <input
               type="text"
               placeholder="Filter services and ingresses..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="flex-1 p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
+            
+            {/* Service type filter */}
+            <select
+              value={selectedServiceType}
+              onChange={(e) => setSelectedServiceType(e.target.value)}
+              className="p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">All Service Types</option>
+              {serviceTypes.map(type => (
+                <option key={type} value={type}>{type}</option>
+              ))}
+            </select>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
+            {/* Ingresses section */}
             <div>
               <h3 className="flex items-center text-lg font-semibold text-gray-800 mb-3">
                 <Globe className="h-5 w-5 text-green-500 mr-2" />
@@ -149,6 +176,7 @@ const ClusterCard = ({ cluster }) => {
               </div>
             </div>
 
+            {/* Services section */}
             <div>
               <h3 className="flex items-center text-lg font-semibold text-gray-800 mb-3">
                 <Network className="h-5 w-5 text-purple-500 mr-2" />
@@ -158,20 +186,19 @@ const ClusterCard = ({ cluster }) => {
                 {filteredServices.map(service => (
                   <div key={service.id} className="p-3 bg-gray-50 rounded-md">
                     <div className="font-medium text-gray-800">{service.serviceName}</div>
-                    <div className="text-sm text-gray-500">Namespace: {service.namespace}</div>
-                    {service.externalIp && (
-                      <div className="text-sm text-gray-500">
-                        External IP: {service.externalIp}
-                      </div>
-                    )}
                     <div className="text-sm text-gray-500">
-                      Ports: {service.ports.join(', ')}
+                      <div>Namespace: {service.namespace}</div>
+                      <div>Type: {service.serviceType}</div>
+                      {service.externalIp && (
+                        <div>External IP: {service.externalIp}</div>
+                      )}
+                      <div>Ports: {service.ports.join(', ')}</div>
                     </div>
                   </div>
                 ))}
                 {filteredServices.length === 0 && (
                   <div className="text-gray-500 text-sm">
-                    {searchTerm ? "No matching services found" : "No services found"}
+                    {searchTerm || selectedServiceType ? "No matching services found" : "No services found"}
                   </div>
                 )}
               </div>

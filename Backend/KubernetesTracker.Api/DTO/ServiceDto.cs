@@ -5,6 +5,7 @@ public class ServiceCreateDto
     public string ServiceName { get; set; } = null!;
     public string? ExternalIp { get; set; }
     public List<int> Ports { get; set; } = new();
+    public string ServiceType { get; set; } = null!;
 }
 
 public class ServiceResponseDto : BaseEntity
@@ -15,4 +16,5 @@ public class ServiceResponseDto : BaseEntity
     public string? ExternalIp { get; set; }
     public List<int> Ports { get; set; } = new();
     public string ClusterName { get; set; } = null!;
+    public string ServiceType { get; set; } = null!;
 }

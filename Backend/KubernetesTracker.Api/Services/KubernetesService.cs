@@ -53,8 +53,8 @@ public class KubernetesService : IKubernetesService
 
         var existingService = await _context.Services
             .AnyAsync(s => s.Cluster.Id == cluster.Id && 
-                          s.Namespace == serviceDto.Namespace && 
-                          s.ServiceName == serviceDto.ServiceName);
+                        s.Namespace == serviceDto.Namespace && 
+                        s.ServiceName == serviceDto.ServiceName);
 
         if (existingService)
         {
@@ -70,6 +70,7 @@ public class KubernetesService : IKubernetesService
             ServiceName = serviceDto.ServiceName,
             ExternalIp = serviceDto.ExternalIp,
             Ports = serviceDto.Ports,
+            ServiceType = serviceDto.ServiceType,
             Cluster = cluster
         };
 
@@ -101,9 +102,9 @@ public class KubernetesService : IKubernetesService
         // Check if update would create a duplicate
         var existingService = await _context.Services
             .AnyAsync(s => s.Id != id &&
-                          s.Cluster.Id == cluster.Id && 
-                          s.Namespace == serviceDto.Namespace && 
-                          s.ServiceName == serviceDto.ServiceName);
+                        s.Cluster.Id == cluster.Id && 
+                        s.Namespace == serviceDto.Namespace && 
+                        s.ServiceName == serviceDto.ServiceName);
 
         if (existingService)
         {
@@ -118,6 +119,7 @@ public class KubernetesService : IKubernetesService
         service.ServiceName = serviceDto.ServiceName;
         service.ExternalIp = serviceDto.ExternalIp;
         service.Ports = serviceDto.Ports;
+        service.ServiceType = serviceDto.ServiceType;
 
         await _context.SaveChangesAsync();
 
@@ -143,6 +145,7 @@ public class KubernetesService : IKubernetesService
         ServiceName = service.ServiceName,
         ExternalIp = service.ExternalIp,
         Ports = service.Ports,
+        ServiceType = service.ServiceType,
         ClusterName = service.Cluster.ClusterName,
         CreatedAt = service.CreatedAt,
         UpdatedAt = service.UpdatedAt
