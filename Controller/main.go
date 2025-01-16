@@ -26,7 +26,6 @@ type Config struct {
 	APIEndpoint        string
 	ConfigMapName      string
 	ConfigMapNamespace string
-	CACertPath         string
 }
 
 // LoadConfig loads configuration from environment variables
@@ -49,17 +48,10 @@ func LoadConfig() (*Config, error) {
 	}
 	log.Printf("Loaded CONFIGMAP_NAMESPACE: %s", configMapNamespace)
 
-	caCertPath := os.Getenv("CA_CERT_PATH")
-	if caCertPath == "" {
-		caCertPath = "/etc/ssl/certs/ca.crt" // Default path
-	}
-	log.Printf("Using CA certificate from: %s", caCertPath)
-
 	return &Config{
 		APIEndpoint:        apiEndpoint,
 		ConfigMapName:      configMapName,
 		ConfigMapNamespace: configMapNamespace,
-		CACertPath:         caCertPath,
 	}, nil
 }
 
@@ -128,9 +120,9 @@ func NewResourceWatcher(k8sConfig *rest.Config, appConfig *Config) (*ResourceWat
 		return nil, fmt.Errorf("failed to get cluster-identity configmap: %v", err)
 	}
 
-	clusterName, ok := cm.Data["cluster-name"]
+	clusterName, ok := cm.Data["cluster_name"]
 	if !ok {
-		return nil, fmt.Errorf("cluster-name not found in configmap")
+		return nil, fmt.Errorf("cluster_name not found in configmap")
 	}
 
 	return &ResourceWatcher{
