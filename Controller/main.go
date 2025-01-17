@@ -17,9 +17,12 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 )
 
 type Config struct {
@@ -56,10 +59,12 @@ func LoadConfig() (*Config, error) {
 }
 
 type ResourceWatcher struct {
-	clientset   *kubernetes.Clientset
-	clusterName string
-	httpClient  *http.Client
-	config      *Config
+	clientset    *kubernetes.Clientset
+	clusterName  string
+	httpClient   *http.Client
+	config       *Config
+	ingressQueue workqueue.RateLimitingInterface
+	serviceQueue workqueue.RateLimitingInterface
 }
 
 type ClusterInfo struct {
@@ -105,6 +110,13 @@ type ServiceResponse struct {
 	ServiceType string  `json:"serviceType"`
 }
 
+type workQueueItem struct {
+	key       string
+	namespace string
+	name      string
+	operation string
+}
+
 func NewResourceWatcher(k8sConfig *rest.Config, appConfig *Config) (*ResourceWatcher, error) {
 	clientset, err := kubernetes.NewForConfig(k8sConfig)
 	if err != nil {
@@ -136,11 +148,17 @@ func NewResourceWatcher(k8sConfig *rest.Config, appConfig *Config) (*ResourceWat
 				},
 			},
 		},
-		config: appConfig,
+		config:       appConfig,
+		ingressQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ingresses"),
+		serviceQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "services"),
 	}, nil
 }
 
 func (w *ResourceWatcher) WatchResources(ctx context.Context) error {
+	defer runtime.HandleCrash()
+	defer w.ingressQueue.ShutDown()
+	defer w.serviceQueue.ShutDown()
+
 	// initial blocking run of cluster update
 	// make sure no service/ingress are attempted before a cluster exists in the db
 	if err := w.collectAndSendClusterInfo(); err != nil {
@@ -166,6 +184,12 @@ func (w *ResourceWatcher) WatchResources(ctx context.Context) error {
 		}
 	}()
 
+	// Start worker goroutines
+	for i := 0; i < 2; i++ {
+		go wait.Until(func() { w.runIngressWorker(ctx) }, time.Second, ctx.Done())
+		go wait.Until(func() { w.runServiceWorker(ctx) }, time.Second, ctx.Done())
+	}
+
 	ingressListWatcher := cache.NewListWatchFromClient(
 		w.clientset.NetworkingV1().RESTClient(),
 		"ingresses",
@@ -176,8 +200,8 @@ func (w *ResourceWatcher) WatchResources(ctx context.Context) error {
 	_, ingressController := cache.NewInformer(
 		ingressListWatcher,
 		&networkingv1.Ingress{},
-		// resync every hour
-		time.Hour*1,
+		// catch-all resync run daily
+		time.Hour*24,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: w.handleIngressChange,
 			UpdateFunc: func(oldObj, newObj interface{}) {
@@ -197,8 +221,8 @@ func (w *ResourceWatcher) WatchResources(ctx context.Context) error {
 	_, serviceController := cache.NewInformer(
 		serviceListWatcher,
 		&corev1.Service{},
-		// resync every hour
-		time.Hour*1,
+		// catch-all resync run daily
+		time.Hour*24,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: w.handleServiceChange,
 			UpdateFunc: func(oldObj, newObj interface{}) {
@@ -433,101 +457,24 @@ func (w *ResourceWatcher) handleIngressChange(obj interface{}) {
 		return
 	}
 
-	payload := w.createIngressPayload(ingress)
-	if payload.Hosts == nil {
-		payload.Hosts = []string{}
-	}
-
-	jsonData, err := json.Marshal(payload)
-	if err != nil {
-		log.Printf("Error marshaling payload: %v", err)
-		return
-	}
-
-	// Try to find if the ingress already exists
-	id, err := w.findIngressID(ingress.Name)
-	var req *http.Request
-	var actionType string
-
-	if err == nil {
-		// Ingress exists, do PUT
-		req, err = http.NewRequest(
-			http.MethodPut,
-			fmt.Sprintf("%s/api/ingress/%d", w.config.APIEndpoint, id),
-			bytes.NewBuffer(jsonData),
-		)
-		actionType = "UPDATE"
-	} else {
-		// Ingress doesn't exist, do POST
-		req, err = http.NewRequest(
-			http.MethodPost,
-			fmt.Sprintf("%s/api/ingress", w.config.APIEndpoint),
-			bytes.NewBuffer(jsonData),
-		)
-		actionType = "CREATE"
-	}
-
-	if err != nil {
-		log.Printf("Error creating request: %v", err)
-		return
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	log.Printf("API %s Request - Ingress %s/%s - URL: %s", actionType, ingress.Namespace, ingress.Name, req.URL.String())
-
-	resp, err := w.httpClient.Do(req)
-	if err != nil {
-		log.Printf("Error making HTTP request: %v", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(resp.Body)
-		log.Printf("API %s Response - Ingress %s/%s - Status: %d, Error: %s",
-			actionType, ingress.Namespace, ingress.Name, resp.StatusCode, string(body))
-	} else {
-		log.Printf("API %s Response - Ingress %s/%s - Status: %d",
-			actionType, ingress.Namespace, ingress.Name, resp.StatusCode)
-	}
+	key := fmt.Sprintf("%s/%s", ingress.Namespace, ingress.Name)
+	w.ingressQueue.Add(workQueueItem{
+		key:       key,
+		namespace: ingress.Namespace,
+		name:      ingress.Name,
+		operation: "update",
+	})
 }
 
 func (w *ResourceWatcher) handleIngressDelete(obj interface{}) {
 	ingress := obj.(*networkingv1.Ingress)
-
-	id, err := w.findIngressID(ingress.Name)
-	if err != nil {
-		log.Printf("Error finding ingress ID: %v", err)
-		return
-	}
-
-	req, err := http.NewRequest(
-		http.MethodDelete,
-		fmt.Sprintf("%s/api/ingress/%d", w.config.APIEndpoint, id),
-		nil,
-	)
-	if err != nil {
-		log.Printf("Error creating request: %v", err)
-		return
-	}
-
-	log.Printf("API DELETE Request - Ingress %s/%s - URL: %s", ingress.Namespace, ingress.Name, req.URL.String())
-
-	resp, err := w.httpClient.Do(req)
-	if err != nil {
-		log.Printf("Error making DELETE request: %v", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
-		body, _ := io.ReadAll(resp.Body)
-		log.Printf("API DELETE Response - Ingress %s/%s - Status: %d, Error: %s",
-			ingress.Namespace, ingress.Name, resp.StatusCode, string(body))
-	} else {
-		log.Printf("API DELETE Response - Ingress %s/%s - Status: %d",
-			ingress.Namespace, ingress.Name, resp.StatusCode)
-	}
+	key := fmt.Sprintf("%s/%s", ingress.Namespace, ingress.Name)
+	w.ingressQueue.Add(workQueueItem{
+		key:       key,
+		namespace: ingress.Namespace,
+		name:      ingress.Name,
+		operation: "delete",
+	})
 }
 
 func (w *ResourceWatcher) createServicePayload(service *corev1.Service) ServicePayload {
@@ -611,6 +558,234 @@ func (w *ResourceWatcher) handleServiceChange(obj interface{}) {
 		return
 	}
 
+	key := fmt.Sprintf("%s/%s", service.Namespace, service.Name)
+	w.serviceQueue.Add(workQueueItem{
+		key:       key,
+		namespace: service.Namespace,
+		name:      service.Name,
+		operation: "update",
+	})
+}
+
+func (w *ResourceWatcher) handleServiceDelete(obj interface{}) {
+	service := obj.(*corev1.Service)
+	key := fmt.Sprintf("%s/%s", service.Namespace, service.Name)
+	w.serviceQueue.Add(workQueueItem{
+		key:       key,
+		namespace: service.Namespace,
+		name:      service.Name,
+		operation: "delete",
+	})
+}
+
+func (w *ResourceWatcher) runIngressWorker(ctx context.Context) {
+	for w.processNextIngressWorkItem(ctx) {
+	}
+}
+
+func (w *ResourceWatcher) runServiceWorker(ctx context.Context) {
+	for w.processNextServiceWorkItem(ctx) {
+	}
+}
+
+func (w *ResourceWatcher) processNextIngressWorkItem(ctx context.Context) bool {
+	obj, shutdown := w.ingressQueue.Get()
+	if shutdown {
+		return false
+	}
+	defer w.ingressQueue.Done(obj)
+
+	item, ok := obj.(workQueueItem)
+	if !ok {
+		w.ingressQueue.Forget(obj)
+		log.Printf("Error: expected workQueueItem in queue but got %#v", obj)
+		return true
+	}
+
+	err := w.syncIngress(ctx, item)
+	if err == nil {
+		w.ingressQueue.Forget(obj)
+		return true
+	}
+
+	if w.ingressQueue.NumRequeues(obj) < 5 {
+		log.Printf("Error syncing ingress %v: %v", item.key, err)
+		w.ingressQueue.AddRateLimited(obj)
+		return true
+	}
+
+	log.Printf("Dropping ingress %q out of the queue: %v", item.key, err)
+	w.ingressQueue.Forget(obj)
+	runtime.HandleError(err)
+	return true
+}
+
+func (w *ResourceWatcher) processNextServiceWorkItem(ctx context.Context) bool {
+	obj, shutdown := w.serviceQueue.Get()
+	if shutdown {
+		return false
+	}
+	defer w.serviceQueue.Done(obj)
+
+	item, ok := obj.(workQueueItem)
+	if !ok {
+		w.serviceQueue.Forget(obj)
+		log.Printf("Error: expected workQueueItem in queue but got %#v", obj)
+		return true
+	}
+
+	err := w.syncService(ctx, item)
+	if err == nil {
+		w.serviceQueue.Forget(obj)
+		return true
+	}
+
+	if w.serviceQueue.NumRequeues(obj) < 5 {
+		log.Printf("Error syncing service %v: %v", item.key, err)
+		w.serviceQueue.AddRateLimited(obj)
+		return true
+	}
+
+	log.Printf("Dropping service %q out of the queue: %v", item.key, err)
+	w.serviceQueue.Forget(obj)
+	runtime.HandleError(err)
+	return true
+}
+
+func (w *ResourceWatcher) syncIngress(ctx context.Context, item workQueueItem) error {
+	if item.operation == "delete" {
+		id, err := w.findIngressID(item.name)
+		if err != nil {
+			return fmt.Errorf("error finding ingress ID: %v", err)
+		}
+
+		req, err := http.NewRequest(
+			http.MethodDelete,
+			fmt.Sprintf("%s/api/ingress/%d", w.config.APIEndpoint, id),
+			nil,
+		)
+		if err != nil {
+			return fmt.Errorf("error creating request: %v", err)
+		}
+
+		log.Printf("API DELETE Request - Ingress %s/%s - URL: %s", item.namespace, item.name, req.URL.String())
+
+		resp, err := w.httpClient.Do(req)
+		if err != nil {
+			return fmt.Errorf("error making DELETE request: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+			body, _ := io.ReadAll(resp.Body)
+			return fmt.Errorf("API DELETE Response - Ingress %s/%s - Status: %d, Error: %s",
+				item.namespace, item.name, resp.StatusCode, string(body))
+		}
+
+		log.Printf("API DELETE Response - Ingress %s/%s - Status: %d",
+			item.namespace, item.name, resp.StatusCode)
+		return nil
+	}
+
+	ingress, err := w.clientset.NetworkingV1().Ingresses(item.namespace).Get(ctx, item.name, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get ingress: %v", err)
+	}
+
+	payload := w.createIngressPayload(ingress)
+	if payload.Hosts == nil {
+		payload.Hosts = []string{}
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("error marshaling payload: %v", err)
+	}
+
+	id, err := w.findIngressID(item.name)
+	var req *http.Request
+	var actionType string
+
+	if err == nil {
+		req, err = http.NewRequest(
+			http.MethodPut,
+			fmt.Sprintf("%s/api/ingress/%d", w.config.APIEndpoint, id),
+			bytes.NewBuffer(jsonData),
+		)
+		actionType = "UPDATE"
+	} else {
+		req, err = http.NewRequest(
+			http.MethodPost,
+			fmt.Sprintf("%s/api/ingress", w.config.APIEndpoint),
+			bytes.NewBuffer(jsonData),
+		)
+		actionType = "CREATE"
+	}
+
+	if err != nil {
+		return fmt.Errorf("error creating request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	log.Printf("API %s Request - Ingress %s/%s - URL: %s", actionType, item.namespace, item.name, req.URL.String())
+
+	resp, err := w.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("error making HTTP request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API %s Response - Ingress %s/%s - Status: %d, Error: %s",
+			actionType, item.namespace, item.name, resp.StatusCode, string(body))
+	}
+
+	log.Printf("API %s Response - Ingress %s/%s - Status: %d",
+		actionType, item.namespace, item.name, resp.StatusCode)
+	return nil
+}
+
+func (w *ResourceWatcher) syncService(ctx context.Context, item workQueueItem) error {
+	if item.operation == "delete" {
+		id, err := w.findServiceID(item.name)
+		if err != nil {
+			return fmt.Errorf("error finding service ID: %v", err)
+		}
+
+		req, err := http.NewRequest(
+			http.MethodDelete,
+			fmt.Sprintf("%s/api/service/%d", w.config.APIEndpoint, id),
+			nil,
+		)
+		if err != nil {
+			return fmt.Errorf("error creating request: %v", err)
+		}
+
+		log.Printf("API DELETE Request - Service %s/%s - URL: %s", item.namespace, item.name, req.URL.String())
+
+		resp, err := w.httpClient.Do(req)
+		if err != nil {
+			return fmt.Errorf("error making DELETE request: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+			body, _ := io.ReadAll(resp.Body)
+			return fmt.Errorf("API DELETE Response - Service %s/%s - Status: %d, Error: %s",
+				item.namespace, item.name, resp.StatusCode, string(body))
+		}
+
+		log.Printf("API DELETE Response - Service %s/%s - Status: %d",
+			item.namespace, item.name, resp.StatusCode)
+		return nil
+	}
+
+	service, err := w.clientset.CoreV1().Services(item.namespace).Get(ctx, item.name, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get service: %v", err)
+	}
+
 	payload := w.createServicePayload(service)
 	if payload.Ports == nil {
 		payload.Ports = []int32{}
@@ -618,16 +793,14 @@ func (w *ResourceWatcher) handleServiceChange(obj interface{}) {
 
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
-		log.Printf("Error marshaling payload: %v", err)
-		return
+		return fmt.Errorf("error marshaling payload: %v", err)
 	}
 
-	id, err := w.findServiceID(service.Name)
+	id, err := w.findServiceID(item.name)
 	var req *http.Request
 	var actionType string
 
 	if err == nil {
-		// Service exists, do PUT
 		req, err = http.NewRequest(
 			http.MethodPut,
 			fmt.Sprintf("%s/api/service/%d", w.config.APIEndpoint, id),
@@ -635,7 +808,6 @@ func (w *ResourceWatcher) handleServiceChange(obj interface{}) {
 		)
 		actionType = "UPDATE"
 	} else {
-		// Service doesn't exist, do POST
 		req, err = http.NewRequest(
 			http.MethodPost,
 			fmt.Sprintf("%s/api/service", w.config.APIEndpoint),
@@ -645,66 +817,27 @@ func (w *ResourceWatcher) handleServiceChange(obj interface{}) {
 	}
 
 	if err != nil {
-		log.Printf("Error creating request: %v", err)
-		return
+		return fmt.Errorf("error creating request: %v", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	log.Printf("API %s Request - Service %s/%s - URL: %s", actionType, service.Namespace, service.Name, req.URL.String())
+	log.Printf("API %s Request - Service %s/%s - URL: %s", actionType, item.namespace, item.name, req.URL.String())
 
 	resp, err := w.httpClient.Do(req)
 	if err != nil {
-		log.Printf("Error making HTTP request: %v", err)
-		return
+		return fmt.Errorf("error making HTTP request: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(resp.Body)
-		log.Printf("API %s Response - Service %s/%s - Status: %d, Error: %s",
-			actionType, service.Namespace, service.Name, resp.StatusCode, string(body))
-	} else {
-		log.Printf("API %s Response - Service %s/%s - Status: %d",
-			actionType, service.Namespace, service.Name, resp.StatusCode)
-	}
-}
-
-func (w *ResourceWatcher) handleServiceDelete(obj interface{}) {
-	service := obj.(*corev1.Service)
-
-	id, err := w.findServiceID(service.Name)
-	if err != nil {
-		log.Printf("Error finding service ID: %v", err)
-		return
+		return fmt.Errorf("API %s Response - Service %s/%s - Status: %d, Error: %s",
+			actionType, item.namespace, item.name, resp.StatusCode, string(body))
 	}
 
-	req, err := http.NewRequest(
-		http.MethodDelete,
-		fmt.Sprintf("%s/api/service/%d", w.config.APIEndpoint, id),
-		nil,
-	)
-	if err != nil {
-		log.Printf("Error creating request: %v", err)
-		return
-	}
-
-	log.Printf("API DELETE Request - Service %s/%s - URL: %s", service.Namespace, service.Name, req.URL.String())
-
-	resp, err := w.httpClient.Do(req)
-	if err != nil {
-		log.Printf("Error making DELETE request: %v", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
-		body, _ := io.ReadAll(resp.Body)
-		log.Printf("API DELETE Response - Service %s/%s - Status: %d, Error: %s",
-			service.Namespace, service.Name, resp.StatusCode, string(body))
-	} else {
-		log.Printf("API DELETE Response - Service %s/%s - Status: %d",
-			service.Namespace, service.Name, resp.StatusCode)
-	}
+	log.Printf("API %s Response - Service %s/%s - Status: %d",
+		actionType, item.namespace, item.name, resp.StatusCode)
+	return nil
 }
 
 func main() {

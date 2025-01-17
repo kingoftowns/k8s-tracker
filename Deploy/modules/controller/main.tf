@@ -54,17 +54,6 @@ resource "kubernetes_cluster_role_binding" "collector" {
   }
 }
 
-resource "kubernetes_config_map" "ca_cert" {
-  metadata {
-    name      = var.ca_cert_configmap_name
-    namespace = var.namespace
-  }
-
-  data = {
-    "ca.crt" = file("./ca.crt")
-  }
-}
-
 resource "kubernetes_config_map" "cluster-identity" {
   metadata {
     name      = var.configmap_name
@@ -73,7 +62,7 @@ resource "kubernetes_config_map" "cluster-identity" {
 
   data = {
     cluster-environment = "production"
-    cluster-name = "bt-pi-cluster"
+    cluster_name = "bt-pi-cluster"
   }
 }
 
@@ -117,16 +106,6 @@ resource "kubernetes_deployment" "watcher" {
             name  = "CONFIGMAP_NAMESPACE"
             value = var.namespace
           }
-          env {
-            name  = "CA_CERT_PATH"
-            value = "/etc/ssl/certs/ca.crt"
-          }
-
-          volume_mount {
-            name       = "ca-cert"
-            mount_path = "/etc/ssl/certs"
-            read_only  = true
-          }
 
           resources {
             limits = {
@@ -153,17 +132,6 @@ resource "kubernetes_deployment" "watcher" {
             }
             initial_delay_seconds = 5
             period_seconds        = 10
-          }
-        }
-
-        volume {
-          name = "ca-cert"
-          config_map {
-            name = var.ca_cert_configmap_name
-            items {
-              key  = "ca.crt"
-              path = "ca.crt"
-            }
           }
         }
       }
