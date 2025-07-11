@@ -13,6 +13,11 @@ variable "ca_cert_configmap_name" {
   type        = string
 }
 
+variable "cluster_name" {
+  description = "The name of the cluster"
+  type        = string
+}
+
 variable "configmap_name" {
   description = "The name of the configmap"
   type        = string

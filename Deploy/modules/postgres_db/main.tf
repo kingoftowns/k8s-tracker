@@ -86,18 +86,6 @@ resource "kubernetes_stateful_set" "postgres" {
       }
 
       spec {
-
-        node_selector = {
-          hardware = "pi5"
-        }
-
-        toleration {
-          key      = "hardware"
-          operator = "Equal"
-          value    = "pi5"
-          effect   = "NoSchedule"
-        }
-
         container {
           name  = "postgres"
           image = var.container_image

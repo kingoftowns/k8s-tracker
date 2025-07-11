@@ -43,6 +43,7 @@ module "k8s_controller" {
   api_endpoint           = "https://cluster-info.k8s.blacktoaster.com"
   app_name               = "k8s-controller"
   ca_cert_configmap_name = "bt-ca"
+  cluster_name           = var.cluster_name
   configmap_name         = "cluster-identity"
   controller_image       = "registry.k8s.blacktoaster.com/k8s-tracker/k8s-controller:latest"
   namespace              = var.namespace

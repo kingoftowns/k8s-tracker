@@ -62,7 +62,7 @@ resource "kubernetes_config_map" "cluster-identity" {
 
   data = {
     cluster-environment = "production"
-    cluster_name = "bt-pi-cluster"
+    cluster_name = var.cluster_name
   }
 }
 

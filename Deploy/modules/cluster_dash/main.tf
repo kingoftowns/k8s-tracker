@@ -30,18 +30,6 @@ resource "kubernetes_deployment" "api" {
       }
 
       spec {
-
-        node_selector = {
-          hardware = "pi5"
-        }
-
-        toleration {
-          key      = "hardware"
-          operator = "Equal"
-          value    = "pi5"
-          effect   = "NoSchedule"
-        }
-
         container {
           name              = var.app_name
           image             = var.container_image
