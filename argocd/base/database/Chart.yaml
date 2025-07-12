@@ -1,0 +1,16 @@
+apiVersion: v2
+name: k8s-tracker-database
+description: PostgreSQL database for Kubernetes Tracker
+type: application
+version: 0.1.0
+appVersion: "14-alpine"
+keywords:
+  - database
+  - postgresql
+  - kubernetes-tracker
+home: https://github.com/your-org/k8s-tracker-gitops
+sources:
+  - https://github.com/your-org/k8s-tracker-gitops
+maintainers:
+  - name: Your Name
+    email: your-email@example.com 

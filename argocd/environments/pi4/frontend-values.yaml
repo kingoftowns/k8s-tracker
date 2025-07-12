@@ -1,0 +1,29 @@
+# Pi4 environment overrides for frontend
+
+# Pi4 has less resources
+deployment:
+  resources:
+    limits:
+      cpu: 200m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+# Backend API URL for Pi4
+apiUrl: "https://cluster-info.k8s.blacktoaster.com"
+
+# Ingress configuration for Pi4
+ingress:
+  hosts:
+    - host: clusters.k8s.blacktoaster.com
+      paths:
+        - path: /
+          pathType: Prefix
+
+# External DNS target for Pi4
+externalDNS:
+  target: "in.k8s.blacktoaster.com"
+
+# Environment-specific namespace
+namespace: cluster-tracker 

@@ -1,0 +1,22 @@
+# Pi5 environment overrides for controller
+
+# Pi5 has more resources
+deployment:
+  resources:
+    limits:
+      cpu: 300m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# Backend API endpoint for Pi5
+apiEndpoint: "https://cluster-info.k8s.blacktoaster.com"
+
+# Cluster-specific configuration
+cluster:
+  name: "bt-pi5"
+  environment: "production"
+
+# Environment-specific namespace
+namespace: cluster-tracker 

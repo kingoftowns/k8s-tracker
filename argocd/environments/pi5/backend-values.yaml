@@ -1,0 +1,22 @@
+# Pi5 environment overrides for backend
+
+# Pi5 has more resources
+deployment:
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+# Database connection
+database:
+  password: "pi5-postgres-password"  # TODO: Use proper secret management
+
+# External DNS target for Pi5
+externalDNS:
+  target: "pi5.k8s.blacktoaster.com"
+
+# Environment-specific namespace
+namespace: cluster-tracker 

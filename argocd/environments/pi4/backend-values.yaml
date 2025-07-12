@@ -1,0 +1,26 @@
+# Pi4 environment overrides for backend
+
+# Use pi4-specific image tag
+image:
+  tag: "pi4-latest"
+
+# Pi4 has less resources
+deployment:
+  resources:
+    limits:
+      cpu: 300m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+
+# Database connection
+database:
+  password: "pi4-postgres-password"  # TODO: Use proper secret management
+
+# External DNS target for Pi4
+externalDNS:
+  target: "in.k8s.blacktoaster.com"
+
+# Environment-specific namespace
+namespace: cluster-tracker 

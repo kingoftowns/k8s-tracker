@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "k8s-tracker-controller.fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "k8s-tracker-controller.labels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
+spec:
+  replicas: {{ .Values.deployment.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "k8s-tracker-controller.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "k8s-tracker-controller.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "k8s-tracker-controller.serviceAccountName" . }}
+      containers:
+        - name: watcher
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: API_ENDPOINT
+              value: {{ .Values.apiEndpoint | quote }}
+            - name: CONFIGMAP_NAME
+              value: {{ .Values.configMap.name | quote }}
+            - name: CONFIGMAP_NAMESPACE
+              value: {{ .Values.namespace | quote }}
+          resources:
+            {{- toYaml .Values.deployment.resources | nindent 12 }}
+          livenessProbe:
+            exec:
+              command: ["pidof", "watcher"]
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            exec:
+              command: ["pidof", "watcher"]
+            initialDelaySeconds: 5
+            periodSeconds: 10 

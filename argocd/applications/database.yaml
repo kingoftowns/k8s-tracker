@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: k8s-tracker-database
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/k8s-tracker-gitops  # TODO: Replace with your repo
+    targetRevision: HEAD
+    path: argocd/base/database
+    helm:
+      valueFiles:
+        - ../../environments/pi4/database-values.yaml  # TODO: Update for your environment
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cluster-tracker
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      jsonPointers:
+        - /data 

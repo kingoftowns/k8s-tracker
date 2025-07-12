@@ -1,0 +1,22 @@
+# Pi5 environment overrides for database
+
+# PostgreSQL configuration
+postgresql:
+  database:
+    password: "pi5-postgres-password"  # TODO: Use proper secret management
+  
+  # Pi5 has more resources
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+# Storage configuration
+storage:
+  size: 10Gi  # Larger storage for Pi5
+  
+# Environment-specific namespace
+namespace: cluster-tracker 

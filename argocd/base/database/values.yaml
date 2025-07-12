@@ -1,0 +1,50 @@
+# Default values for k8s-tracker-database
+nameOverride: ""
+fullnameOverride: ""
+
+# PostgreSQL configuration
+postgresql:
+  image:
+    repository: postgres
+    tag: "14-alpine"
+    pullPolicy: IfNotPresent
+  
+  database:
+    name: kubernetes_tracking
+    username: k8sTracker
+    # password: will be generated or set per environment
+  
+  port: 5432
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+# Storage configuration
+storage:
+  # Size of the persistent volume
+  size: 5Gi
+  
+  # NFS configuration
+  nfs:
+    server: "nfs.blacktoaster.com"
+    path: "/k8s"
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 5432
+
+# Security configuration
+security:
+  # Whether to create a random password
+  generatePassword: true
+  # Secret name for database credentials
+  secretName: "postgres-secret"
+
+# Namespace configuration
+namespace: cluster-tracker 

@@ -1,0 +1,29 @@
+# Pi5 environment overrides for frontend
+
+# Pi5 has more resources
+deployment:
+  resources:
+    limits:
+      cpu: 300m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# Backend API URL for Pi5
+apiUrl: "https://cluster-info.k8s.blacktoaster.com"
+
+# Ingress configuration for Pi5
+ingress:
+  hosts:
+    - host: clusters.k8s.blacktoaster.com
+      paths:
+        - path: /
+          pathType: Prefix
+
+# External DNS target for Pi5
+externalDNS:
+  target: "pi5.k8s.blacktoaster.com"
+
+# Environment-specific namespace
+namespace: cluster-tracker 
