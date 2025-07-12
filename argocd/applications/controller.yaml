@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: k8s-tracker-controller
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/k8s-tracker-gitops  # TODO: Replace with your repo
+    targetRevision: HEAD
+    path: argocd/base/controller
+    helm:
+      valueFiles:
+        - ../../environments/pi4/controller-values.yaml  # TODO: Update for your environment
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cluster-tracker
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+  # Wait for backend to be ready
+  info:
+    - name: 'Depends on'
+      value: 'k8s-tracker-backend' 

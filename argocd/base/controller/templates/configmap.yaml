@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.configMap.name }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "k8s-tracker-controller.labels" . | nindent 4 }}
+    app.kubernetes.io/component: config
+data:
+  cluster-environment: {{ .Values.cluster.environment | quote }}
+  cluster_name: {{ .Values.cluster.name | quote }} 

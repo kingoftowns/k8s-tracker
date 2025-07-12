@@ -1,0 +1,71 @@
+# Default values for k8s-tracker-frontend
+nameOverride: ""
+fullnameOverride: ""
+
+# Application configuration
+app:
+  name: k8s-dashboard
+  
+# Container image configuration
+image:
+  repository: registry.k8s.blacktoaster.com/k8s-tracker/k8s-dashboard
+  tag: "latest"
+  pullPolicy: Always
+
+# Deployment configuration
+deployment:
+  replicaCount: 1
+  containerPort: 80
+  
+  resources:
+    limits:
+      cpu: 200m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 80
+
+# Backend API configuration
+apiUrl: "https://cluster-info.k8s.blacktoaster.com"
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+  hosts:
+    - host: clusters.k8s.blacktoaster.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: k8s-dashboard-tls
+      hosts:
+        - clusters.k8s.blacktoaster.com
+
+# Certificate configuration
+certificate:
+  enabled: true
+  name: k8s-dashboard
+  commonName: clusters.k8s.blacktoaster.com
+  dnsNames:
+    - clusters.k8s.blacktoaster.com
+  issuerRef:
+    name: vault-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+
+# External DNS configuration
+externalDNS:
+  target: "in.k8s.blacktoaster.com"
+
+# Namespace configuration
+namespace: cluster-tracker 

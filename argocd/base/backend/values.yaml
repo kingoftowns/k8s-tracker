@@ -1,0 +1,79 @@
+# Default values for k8s-tracker-backend
+nameOverride: ""
+fullnameOverride: ""
+
+# Application configuration
+app:
+  name: k8s-tracker-api
+  
+# Container image configuration
+image:
+  repository: registry.k8s.blacktoaster.com/k8s-tracker/k8s-tracker-api
+  tag: "latest"
+  pullPolicy: Always
+
+# Deployment configuration
+deployment:
+  replicaCount: 1
+  
+  # Container port
+  containerPort: 80
+  
+  # Resource limits and requests
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 80
+
+# Database connection configuration
+database:
+  host: postgres  # Simple service name matches Terraform
+  name: kubernetes_tracking
+  username: k8sTracker
+  # password: will be set per environment or from secret
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    nginx.ingress.kubernetes.io/app-root: "/swagger/index.html"
+  hosts:
+    - host: cluster-info.k8s.blacktoaster.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: k8s-tracker-tls
+      hosts:
+        - cluster-info.k8s.blacktoaster.com
+
+# Certificate configuration (cert-manager)
+certificate:
+  enabled: true
+  name: k8s-tracker
+  commonName: cluster-info.k8s.blacktoaster.com
+  dnsNames:
+    - cluster-info.k8s.blacktoaster.com
+  issuerRef:
+    name: vault-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+
+# External DNS configuration
+externalDNS:
+  target: "in.k8s.blacktoaster.com"
+
+# Namespace configuration
+namespace: cluster-tracker 

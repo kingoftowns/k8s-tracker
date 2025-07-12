@@ -1,0 +1,22 @@
+# Pi4 environment overrides for controller
+
+# Pi4 has less resources
+deployment:
+  resources:
+    limits:
+      cpu: 200m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+# Backend API endpoint
+apiEndpoint: "https://cluster-info.k8s.blacktoaster.com"
+
+# Cluster-specific configuration
+cluster:
+  name: "bt-pi4"
+  environment: "production"
+
+# Environment-specific namespace
+namespace: cluster-tracker 

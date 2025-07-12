@@ -1,0 +1,53 @@
+# Default values for k8s-tracker-controller
+nameOverride: ""
+fullnameOverride: ""
+
+# Application configuration
+app:
+  name: k8s-controller
+  
+# Container image configuration
+image:
+  repository: registry.k8s.blacktoaster.com/k8s-tracker/k8s-controller
+  tag: "latest"
+  pullPolicy: Always
+
+# Deployment configuration
+deployment:
+  replicaCount: 1
+  
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# Backend API configuration
+apiEndpoint: "https://cluster-info.k8s.blacktoaster.com"
+
+# Cluster configuration
+cluster:
+  name: "default-cluster"
+  environment: "production"
+
+# ConfigMap configuration
+configMap:
+  name: "cluster-identity"
+
+# Service Account configuration
+serviceAccount:
+  name: "cluster-info-collector"
+  create: true
+
+# RBAC configuration
+rbac:
+  create: true
+  
+# CA Certificate ConfigMap
+caCertConfigMap:
+  name: "bt-ca"
+
+# Namespace configuration
+namespace: cluster-tracker 

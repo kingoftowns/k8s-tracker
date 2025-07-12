@@ -1,0 +1,30 @@
+{{- if .Values.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "k8s-tracker-controller.fullname" . }}
+  labels:
+    {{- include "k8s-tracker-controller.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rbac
+rules:
+  # Allow reading services
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "watch"]
+  
+  # Allow reading ingresses
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list", "watch"]
+  
+  # Allow reading nodes
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
+  
+  # Allow reading specific configmaps
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: [{{ .Values.configMap.name | quote }}]
+    verbs: ["get"]
+{{- end }} 

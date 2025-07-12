@@ -1,0 +1,22 @@
+# Pi4 environment overrides for database
+
+# PostgreSQL configuration
+postgresql:
+  database:
+    password: "pi4-postgres-password"  # TODO: Use proper secret management
+  
+  # Pi4 has less resources
+  resources:
+    limits:
+      cpu: 300m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+
+# Storage configuration
+storage:
+  size: 3Gi  # Smaller storage for Pi4
+  
+# Environment-specific namespace
+namespace: cluster-tracker 
