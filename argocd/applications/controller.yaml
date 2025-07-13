@@ -13,14 +13,11 @@ spec:
     path: argocd/base/controller
     helm:
       valueFiles:
-        - ../../environments/pi4/controller-values.yaml  # TODO: Update for your environment
+        - ../../environments/pi5/controller-values.yaml  # TODO: Update for your environment
   destination:
     server: https://kubernetes.default.svc
     namespace: cluster-tracker
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
     syncOptions:
       - CreateNamespace=true
   # Wait for backend to be ready
