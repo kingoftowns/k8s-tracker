@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: k8s-tracker-frontend
+  name: k8s-tracker-controller-pi4
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
@@ -10,17 +10,13 @@ spec:
   source:
     repoURL: git@github.com:kingoftowns/k8s-tracker.git
     targetRevision: HEAD
-    path: argocd/base/frontend
+    path: argocd/base/controller
     helm:
       valueFiles:
-        - ../../environments/pi4/frontend-values.yaml  # TODO: Update for your environment
+        - ../../environments/pi4/controller-values.yaml
   destination:
     name: pi4  # External pi4 cluster (registered in ArgoCD)
     namespace: cluster-tracker
   syncPolicy:
     syncOptions:
-      - CreateNamespace=true
-  # Wait for backend to be ready
-  info:
-    - name: 'Depends on'
-      value: 'k8s-tracker-backend' 
+      - CreateNamespace=true 

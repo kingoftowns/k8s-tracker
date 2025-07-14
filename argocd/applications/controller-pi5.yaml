@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: k8s-tracker-controller
+  name: k8s-tracker-controller-pi5
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
@@ -13,14 +13,10 @@ spec:
     path: argocd/base/controller
     helm:
       valueFiles:
-        - ../../environments/pi5/controller-values.yaml  # TODO: Update for your environment
+        - ../../environments/pi5/controller-values.yaml
   destination:
-    server: https://kubernetes.default.svc
+    server: https://kubernetes.default.svc  # pi5 cluster (where ArgoCD is running)
     namespace: cluster-tracker
   syncPolicy:
     syncOptions:
-      - CreateNamespace=true
-  # Wait for backend to be ready
-  info:
-    - name: 'Depends on'
-      value: 'k8s-tracker-backend' 
+      - CreateNamespace=true 
