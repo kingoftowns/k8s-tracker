@@ -13,7 +13,7 @@ spec:
     path: argocd/base/backend
     helm:
       valueFiles:
-        - ../../environments/pi4/backend-values.yaml  # TODO: Update for your environment
+        - ../../environments/pi4/backend-values.yaml
   destination:
     server: https://10.0.8.11:6443  # External pi4 cluster
     namespace: cluster-tracker
