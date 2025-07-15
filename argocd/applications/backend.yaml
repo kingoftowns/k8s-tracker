@@ -15,7 +15,7 @@ spec:
       valueFiles:
         - ../../environments/pi4/backend-values.yaml  # TODO: Update for your environment
   destination:
-    name: pi4  # External pi4 cluster (registered in ArgoCD)
+    server: https://10.0.8.11:6443  # External pi4 cluster
     namespace: cluster-tracker
   syncPolicy:
     syncOptions:
