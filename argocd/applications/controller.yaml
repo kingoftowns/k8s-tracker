@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: k8s-tracker-controller-pi5
+  name: k8s-tracker-controller
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
@@ -13,7 +13,7 @@ spec:
     path: argocd/base/controller
     helm:
       valueFiles:
-        - ../../environments/pi5/controller-values.yaml
+        - ../../environments/controller-values.yaml
   destination:
     server: https://kubernetes.default.svc  # pi5 cluster (where ArgoCD is running)
     namespace: cluster-tracker

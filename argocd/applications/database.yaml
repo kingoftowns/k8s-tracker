@@ -13,7 +13,7 @@ spec:
     path: argocd/base/database
     helm:
       valueFiles:
-        - ../../environments/pi4/database-values.yaml
+        - ../../environments/database-values.yaml
   destination:
     server: https://kubernetes.default.svc  # pi5 cluster (where ArgoCD is running)
     namespace: cluster-tracker

@@ -15,7 +15,7 @@ apiEndpoint: "https://cluster-info.k8s.blacktoaster.com"
 
 # Cluster-specific configuration
 cluster:
-  name: "bt-pi5"
+  name: "bt-pi"
   environment: "production"
 
 # Environment-specific namespace
