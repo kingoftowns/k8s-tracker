@@ -15,7 +15,7 @@ spec:
       valueFiles:
         - ../../environments/pi4/backend-values.yaml
   destination:
-    server: https://10.0.8.11:6443  # External pi4 cluster
+    server: https://kubernetes.default.svc  # pi5 cluster (where ArgoCD is running)
     namespace: cluster-tracker
   syncPolicy:
     syncOptions:
